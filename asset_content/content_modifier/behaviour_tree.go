@@ -89,11 +89,16 @@ func BehaviourTreeRemoveNode(nodeIds []string, doc *BehaviourTreeDocumentation) 
 		if slices.Contains(nodeIds, existNode.NodeId) {
 			// Need To Removed
 			removedNodes = append(removedNodes, existNode)
+
+			if existNode.NodeType == "bt_root" {
+				return common.IllegalBehaviourTreeRemoveRoot, common.IllegalBehaviourTreeRemoveRoot.GetMsg(), nil
+			}
+
 		} else {
 			reserveNodes = append(reserveNodes, existNode)
 		}
 	}
 	doc.Nodes = reserveNodes
 
-	return 0, "", removedNodes
+	return common.Success, "", removedNodes
 }

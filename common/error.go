@@ -27,7 +27,8 @@ const (
 
 	//Behaviour Tree Content
 
-	InvalidBehaviourTreeNodeType ErrorCode = 31001
+	InvalidBehaviourTreeNodeType   ErrorCode = 31001
+	IllegalBehaviourTreeRemoveRoot ErrorCode = 31010
 )
 
 var errorMsg = map[ErrorCode]string{
@@ -40,7 +41,8 @@ var errorMsg = map[ErrorCode]string{
 
 	InvalidAssetVersion: "Invalid Asset Version For Modification Exist Version: %s Request Version: %s",
 
-	InvalidBehaviourTreeNodeType: "Invalid Behaviour Tree Node Type: %s",
+	InvalidBehaviourTreeNodeType:   "Invalid Behaviour Tree Node Type: %s",
+	IllegalBehaviourTreeRemoveRoot: "Remove The Root Node In Behaviour Tree Is Illegal",
 }
 
 func (errCode ErrorCode) GetMsg() string {
