@@ -47,6 +47,16 @@ type BehaviourTreeDocumentation struct {
 	Services        []LogicBtService
 }
 
+type BehaviourTreeNodeMovementItem struct {
+	NodeId     string     `json:"nodeId" binding:"required"`
+	ToPosition XYPosition `json:"toPosition" binding:"required"`
+}
+
+type BehaviourTreeNodeDiffInfo struct {
+	PreModifiedNode  *LogicBtNode `json:"preModifiedNode" binding:"required"`
+	PostModifiedNode *LogicBtNode `json:"postModifiedNode" binding:"required"`
+}
+
 func BehaviourTreeCreateEmptyContent() (errCode common.ErrorCode, errMsg string, content string) {
 	initializedNodes := []LogicBtNode{{uuid.New().String(), XYPosition{100, 100}, "bt_root", 0, nil}}
 	BehaviourTreeDocumentation := BehaviourTreeDocumentation{
@@ -59,13 +69,27 @@ func BehaviourTreeCreateEmptyContent() (errCode common.ErrorCode, errMsg string,
 
 	b, err := json.Marshal(BehaviourTreeDocumentation)
 	if err != nil {
-		return 1, err.Error(), ""
+		return common.SerializationError, common.SerializationError.GetMsg(), ""
 	}
-	return 0, "", string(b)
+	return common.Success, "", string(b)
 }
 
-func BehaviourTreeMoveNode(nodeId string, toPosition XYPosition, doc BehaviourTreeDocumentation) (errCode int, errMsg string, updateNode *LogicBtNode) {
-	return 0, "", nil
+func BehaviourTreeMoveNode(movementInfos []BehaviourTreeNodeMovementItem, doc *BehaviourTreeDocumentation) (errCode common.ErrorCode, errMsg string, updateNodeDiffs []BehaviourTreeNodeDiffInfo) {
+
+	resultDiff := make([]BehaviourTreeNodeDiffInfo, 0, len(doc.Nodes))
+
+	for nIdx, _ := range doc.Nodes {
+		pIdx := slices.IndexFunc(movementInfos, func(item BehaviourTreeNodeMovementItem) bool {
+			return item.NodeId == doc.Nodes[nIdx].NodeId
+		})
+		if pIdx > -1 {
+			preUpdateNode := doc.Nodes[nIdx]
+			doc.Nodes[nIdx].Position = movementInfos[pIdx].ToPosition
+			afterUpdateNode := doc.Nodes[nIdx]
+			resultDiff = append(resultDiff, BehaviourTreeNodeDiffInfo{PreModifiedNode: &preUpdateNode, PostModifiedNode: &afterUpdateNode})
+		}
+	}
+	return common.Success, "", resultDiff
 }
 
 func BehaviourTreeCreateNode(nodeType string, toPosition XYPosition, doc *BehaviourTreeDocumentation) (errCode common.ErrorCode, errMsg string, createdNode *LogicBtNode) {
@@ -79,7 +103,7 @@ func BehaviourTreeCreateNode(nodeType string, toPosition XYPosition, doc *Behavi
 		doc.Nodes = append(doc.Nodes, newNode)
 		return common.Success, "", &newNode
 	}
-	return common.InvalidBehaviourTreeNodeType, common.InvalidBehaviourTreeNodeType.GetMsgFormat(nodeType), nil
+	return common.BtInvalidNodeType, common.BtInvalidNodeType.GetMsgFormat(nodeType), nil
 }
 
 func BehaviourTreeRemoveNode(nodeIds []string, doc *BehaviourTreeDocumentation) (common.ErrorCode, string, []LogicBtNode) {
@@ -91,7 +115,7 @@ func BehaviourTreeRemoveNode(nodeIds []string, doc *BehaviourTreeDocumentation) 
 			removedNodes = append(removedNodes, existNode)
 
 			if existNode.NodeType == "bt_root" {
-				return common.IllegalBehaviourTreeRemoveRoot, common.IllegalBehaviourTreeRemoveRoot.GetMsg(), nil
+				return common.BtIllegalRemoveRoot, common.BtIllegalRemoveRoot.GetMsg(), nil
 			}
 
 		} else {

@@ -23,12 +23,15 @@ const (
 
 	//Common Content
 
-	InvalidAssetVersion ErrorCode = 30001
+	InvalidAssetVersion  ErrorCode = 30001
+	DeserializationError ErrorCode = 30010
+	SerializationError   ErrorCode = 30011
 
 	//Behaviour Tree Content
 
-	InvalidBehaviourTreeNodeType   ErrorCode = 31001
-	IllegalBehaviourTreeRemoveRoot ErrorCode = 31010
+	BtInvalidNodeType               ErrorCode = 31001
+	BtIllegalRemoveRoot             ErrorCode = 31010
+	BtInvalidNodeMovementParameters ErrorCode = 31020
 )
 
 var errorMsg = map[ErrorCode]string{
@@ -39,10 +42,13 @@ var errorMsg = map[ErrorCode]string{
 	DuplicatedAssetName:    "Duplicated Asset Name: %s",
 	InvalidAssetType:       "Invalid Asset Type: %s",
 
-	InvalidAssetVersion: "Invalid Asset Version For Modification Exist Version: %s Request Version: %s",
+	InvalidAssetVersion:  "Invalid Asset Version For Modification Exist Version: %s Request Version: %s",
+	DeserializationError: "Deserialization Error",
+	SerializationError:   "Serialization Error",
 
-	InvalidBehaviourTreeNodeType:   "Invalid Behaviour Tree Node Type: %s",
-	IllegalBehaviourTreeRemoveRoot: "Remove The Root Node In Behaviour Tree Is Illegal",
+	BtInvalidNodeType:               "Invalid Behaviour Tree Node Type: %s",
+	BtIllegalRemoveRoot:             "Remove The Root Node In Behaviour Tree Is Illegal",
+	BtInvalidNodeMovementParameters: "Invalid Movement Params Length(NodeIds) %d != Length(toPositions) %d",
 }
 
 func (errCode ErrorCode) GetMsg() string {
