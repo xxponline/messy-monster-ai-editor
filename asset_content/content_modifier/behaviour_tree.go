@@ -83,8 +83,8 @@ func BehaviourTreeCreateNode(nodeType string, toPosition XYPosition, doc *Behavi
 }
 
 func BehaviourTreeRemoveNode(nodeIds []string, doc *BehaviourTreeDocumentation) (common.ErrorCode, string, []LogicBtNode) {
-	reserveNodes := make([]LogicBtNode, len(doc.Nodes))
-	removedNodes := make([]LogicBtNode, len(doc.Nodes))
+	reserveNodes := make([]LogicBtNode, 0, len(doc.Nodes))
+	removedNodes := make([]LogicBtNode, 0, len(doc.Nodes))
 	for _, existNode := range doc.Nodes {
 		if slices.Contains(nodeIds, existNode.NodeId) {
 			// Need To Removed
