@@ -156,7 +156,7 @@ func RemoveBehaviourTreeNodeAPI(context *gin.Context) {
 	}
 
 	//Real Remove
-	errCode, errMsg, removedNodes := content_modifier.BehaviourTreeRemoveNode(req.NodeIds, btDoc)
+	errCode, errMsg, diffInfos := content_modifier.BehaviourTreeRemoveNode(req.NodeIds, btDoc)
 	if errCode != common.Success {
 		context.JSON(http.StatusOK, gin.H{
 			"errCode":    errCode,
@@ -175,10 +175,6 @@ func RemoveBehaviourTreeNodeAPI(context *gin.Context) {
 	}
 
 	//Calculate Modification Info
-	diffInfos := make([]content_modifier.BehaviourTreeNodeDiffInfo, len(removedNodes))
-	for _, removedNode := range removedNodes {
-		diffInfos = append(diffInfos, content_modifier.BehaviourTreeNodeDiffInfo{PreModifiedNode: &removedNode})
-	}
 	modificationInfo := BehaviourTreeNodeModification{
 		diffInfos,
 		req.CurrentVersion,

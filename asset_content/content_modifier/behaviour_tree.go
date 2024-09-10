@@ -106,14 +106,14 @@ func BehaviourTreeCreateNode(nodeType string, toPosition XYPosition, doc *Behavi
 	return common.BtInvalidNodeType, common.BtInvalidNodeType.GetMsgFormat(nodeType), nil
 }
 
-func BehaviourTreeRemoveNode(nodeIds []string, doc *BehaviourTreeDocumentation) (common.ErrorCode, string, []LogicBtNode) {
+func BehaviourTreeRemoveNode(nodeIds []string, doc *BehaviourTreeDocumentation) (common.ErrorCode, string, []BehaviourTreeNodeDiffInfo) {
+
+	diffInfos := make([]BehaviourTreeNodeDiffInfo, 0, len(nodeIds))
 	reserveNodes := make([]LogicBtNode, 0, len(doc.Nodes))
-	removedNodes := make([]LogicBtNode, 0, len(doc.Nodes))
 	for _, existNode := range doc.Nodes {
 		if slices.Contains(nodeIds, existNode.NodeId) {
 			// Need To Removed
-			removedNodes = append(removedNodes, existNode)
-
+			diffInfos = append(diffInfos, BehaviourTreeNodeDiffInfo{&existNode, nil})
 			if existNode.NodeType == "bt_root" {
 				return common.BtIllegalRemoveRoot, common.BtIllegalRemoveRoot.GetMsg(), nil
 			}
@@ -124,5 +124,5 @@ func BehaviourTreeRemoveNode(nodeIds []string, doc *BehaviourTreeDocumentation) 
 	}
 	doc.Nodes = reserveNodes
 
-	return common.Success, "", removedNodes
+	return common.Success, "", diffInfos
 }
