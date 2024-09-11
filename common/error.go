@@ -68,5 +68,5 @@ func (errCode ErrorCode) GetMsg() string {
 }
 
 func (errCode ErrorCode) GetMsgFormat(params ...any) string {
-	return fmt.Sprintf(errorMsg[errCode], params)
+	return fmt.Sprintf(errorMsg[errCode], params...)
 }
