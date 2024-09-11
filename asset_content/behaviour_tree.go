@@ -36,9 +36,9 @@ type ConnectBehaviourTreeNodeReq struct {
 }
 
 type DisconnectBehaviourTreeNodeReq struct {
-	AssetId        string `json:"assetId" binding:"required"`
-	ChildNodeId    string `json:"childNodeId" binding:"required"`
-	CurrentVersion string `json:"currentVersion" binding:"required"`
+	AssetId        string   `json:"assetId" binding:"required"`
+	ChildNodeIds   []string `json:"childNodeIds" binding:"required"`
+	CurrentVersion string   `json:"currentVersion" binding:"required"`
 }
 
 type UpdateBehaviourTreeNodeSettingsReq struct {
@@ -199,6 +199,58 @@ func ConnectBehaviourTreeNodeAPI(context *gin.Context) {
 		"errMessage":       errMsg,
 		"modificationInfo": modificationInfo,
 	})
+}
+
+func DisconnectBehaviourTreeNodeAPI(context *gin.Context) {
+	var req DisconnectBehaviourTreeNodeReq
+	context.BindJSON(&req)
+
+	errCode, errMsg, assetDoc, btDoc := readyBehaviourTreeDocForUpdate(req.AssetId, req.CurrentVersion)
+	if assetDoc != nil {
+		defer assetDoc.Release()
+	}
+	if errCode != common.Success {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    errCode,
+			"errMessage": errMsg,
+		})
+		return
+	}
+
+	//Real Disconnect
+	errCode, errMsg, diffInfos := content_modifier.BehaviourTreeDisconnectNode(req.ChildNodeIds, btDoc)
+	if errCode != common.Success {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    errCode,
+			"errMessage": errMsg,
+		})
+		return
+	}
+
+	newVersion := req.CurrentVersion
+	if len(diffInfos) > 0 { // If DiffInfos Is Empty, Real Write Is Not Necessary And Keep The Version
+		errCode, errMsg, newVersion = writeBehaviourTreeDocForUpdate(assetDoc, btDoc)
+		if errCode != common.Success {
+			context.JSON(http.StatusOK, gin.H{
+				"errCode":    errCode,
+				"errMessage": errMsg,
+			})
+			return
+		}
+	}
+
+	//Calculate Modification Info
+	modificationInfo := BehaviourTreeNodeModification{
+		diffInfos,
+		req.CurrentVersion,
+		newVersion}
+
+	context.JSON(http.StatusOK, gin.H{
+		"errCode":          errCode,
+		"errMessage":       errMsg,
+		"modificationInfo": modificationInfo,
+	})
+
 }
 
 func ModifyBehaviourTreeNode(context *gin.Context) {
