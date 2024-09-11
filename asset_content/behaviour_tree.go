@@ -9,43 +9,55 @@ import (
 	"net/http"
 )
 
-type CreateBehaviourTreeNodeReq struct {
-	AssetId        string                      `json:"assetId" binding:"required"`
-	CurrentVersion string                      `json:"currentVersion" binding:"required"`
-	Position       content_modifier.XYPosition `json:"position" binding:"required"`
-	NodeType       string                      `json:"nodeType" binding:"required"`
-}
-
-type MoveBehaviourTreeNodeReq struct {
-	AssetId        string                                           `json:"assetId" binding:"required"`
-	MovementItems  []content_modifier.BehaviourTreeNodeMovementItem `json:"movements" binding:"required"`
-	CurrentVersion string                                           `json:"currentVersion" binding:"required"`
-}
-
-type RemoveBehaviourTreeNodeReq struct {
-	AssetId        string   `json:"assetId" binding:"required"`
-	NodeIds        []string `json:"nodeIds" binding:"required"`
-	CurrentVersion string   `json:"currentVersion" binding:"required"`
-}
-
-type ConnectBehaviourTreeNodeReq struct {
+type BaseBehaviourTreeModificationReq struct {
 	AssetId        string `json:"assetId" binding:"required"`
-	ParentNodeId   string `json:"parentNodeId" binding:"required"`
-	ChildNodeId    string `json:"childNodeId" binding:"required"`
 	CurrentVersion string `json:"currentVersion" binding:"required"`
 }
 
+type AssetModifier interface {
+	GetAssetID() string
+	GetCurrentVersion() string
+}
+
+func (req *BaseBehaviourTreeModificationReq) GetAssetID() string {
+	return req.AssetId
+}
+
+func (req *BaseBehaviourTreeModificationReq) GetCurrentVersion() string {
+	return req.CurrentVersion
+}
+
+type CreateBehaviourTreeNodeReq struct {
+	BaseBehaviourTreeModificationReq
+	Position content_modifier.XYPosition `json:"position" binding:"required"`
+	NodeType string                      `json:"nodeType" binding:"required"`
+}
+
+type MoveBehaviourTreeNodeReq struct {
+	BaseBehaviourTreeModificationReq
+	MovementItems []content_modifier.BehaviourTreeNodeMovementItem `json:"movements" binding:"required"`
+}
+
+type RemoveBehaviourTreeNodeReq struct {
+	BaseBehaviourTreeModificationReq
+	NodeIds []string `json:"nodeIds" binding:"required"`
+}
+
+type ConnectBehaviourTreeNodeReq struct {
+	BaseBehaviourTreeModificationReq
+	ParentNodeId string `json:"parentNodeId" binding:"required"`
+	ChildNodeId  string `json:"childNodeId" binding:"required"`
+}
+
 type DisconnectBehaviourTreeNodeReq struct {
-	AssetId        string   `json:"assetId" binding:"required"`
-	ChildNodeIds   []string `json:"childNodeIds" binding:"required"`
-	CurrentVersion string   `json:"currentVersion" binding:"required"`
+	BaseBehaviourTreeModificationReq
+	ChildNodeIds []string `json:"childNodeIds" binding:"required"`
 }
 
 type UpdateBehaviourTreeNodeSettingsReq struct {
-	AssetId        string          `json:"assetId" binding:"required"`
-	NodeId         string          `json:"nodeId" binding:"required"`
-	CurrentVersion string          `json:"currentVersion" binding:"required"`
-	NodeSettings   json.RawMessage `json:"data" binding:"required"`
+	BaseBehaviourTreeModificationReq
+	NodeId       string          `json:"nodeId" binding:"required"`
+	NodeSettings json.RawMessage `json:"data" binding:"required"`
 }
 
 type BehaviourTreeNodeModification struct {
@@ -58,42 +70,9 @@ func CreateBehaviourTreeNodeAPI(context *gin.Context) {
 	var req CreateBehaviourTreeNodeReq
 	context.BindJSON(&req)
 
-	errCode, errMsg, assetDoc, btDoc := readyBehaviourTreeDocForUpdate(req.AssetId, req.CurrentVersion)
-	if assetDoc != nil {
-		defer assetDoc.Release()
-	}
-	if errCode != common.Success {
-		context.JSON(http.StatusOK, gin.H{
-			"errCode":    errCode,
-			"errMessage": errMsg,
-		})
-		return
-	}
-
-	//Real Create
-	errCode, errMsg, createdNode := content_modifier.BehaviourTreeCreateNode(req.NodeType, req.Position, btDoc)
-	if errCode != common.Success {
-		context.JSON(http.StatusOK, gin.H{
-			"errCode":    errCode,
-			"errMessage": errMsg,
-		})
-		return
-	}
-
-	errCode, errMsg, newVersion := writeBehaviourTreeDocForUpdate(assetDoc, btDoc)
-	if errCode != common.Success {
-		context.JSON(http.StatusOK, gin.H{
-			"errCode":    errCode,
-			"errMessage": errMsg,
-		})
-		return
-	}
-
-	//Calculate Modification Info
-	modificationInfo := BehaviourTreeNodeModification{
-		[]content_modifier.BehaviourTreeNodeDiffInfo{{nil, createdNode}},
-		req.CurrentVersion,
-		newVersion}
+	errCode, errMsg, modificationInfo := passBehaviourTreeDocumentModification(&req, func(req *CreateBehaviourTreeNodeReq, btDoc *content_modifier.BehaviourTreeDocumentation) (common.ErrorCode, string, []content_modifier.BehaviourTreeNodeDiffInfo) {
+		return content_modifier.BehaviourTreeCreateNode(req.NodeType, req.Position, btDoc)
+	})
 
 	context.JSON(http.StatusOK, gin.H{
 		"errCode":          errCode,
@@ -106,42 +85,9 @@ func MoveBehaviourTreeNodeAPI(context *gin.Context) {
 	var req MoveBehaviourTreeNodeReq
 	context.BindJSON(&req)
 
-	errCode, errMsg, assetDoc, btDoc := readyBehaviourTreeDocForUpdate(req.AssetId, req.CurrentVersion)
-	if assetDoc != nil {
-		defer assetDoc.Release()
-	}
-	if errCode != common.Success {
-		context.JSON(http.StatusOK, gin.H{
-			"errCode":    errCode,
-			"errMessage": errMsg,
-		})
-		return
-	}
-
-	//Real Create
-	errCode, errMsg, nodeDiffInfos := content_modifier.BehaviourTreeMoveNode(req.MovementItems, btDoc)
-	if errCode != common.Success {
-		context.JSON(http.StatusOK, gin.H{
-			"errCode":    errCode,
-			"errMessage": errMsg,
-		})
-		return
-	}
-
-	// write To DB
-	errCode, errMsg, newVersion := writeBehaviourTreeDocForUpdate(assetDoc, btDoc)
-	if errCode != common.Success {
-		context.JSON(http.StatusOK, gin.H{
-			"errCode":    errCode,
-			"errMessage": errMsg,
-		})
-		return
-	}
-
-	modificationInfo := BehaviourTreeNodeModification{
-		nodeDiffInfos,
-		req.CurrentVersion,
-		newVersion}
+	errCode, errMsg, modificationInfo := passBehaviourTreeDocumentModification(&req, func(req *MoveBehaviourTreeNodeReq, btDoc *content_modifier.BehaviourTreeDocumentation) (common.ErrorCode, string, []content_modifier.BehaviourTreeNodeDiffInfo) {
+		return content_modifier.BehaviourTreeMoveNode(req.MovementItems, btDoc)
+	})
 
 	context.JSON(http.StatusOK, gin.H{
 		"errCode":          errCode,
@@ -154,45 +100,9 @@ func ConnectBehaviourTreeNodeAPI(context *gin.Context) {
 	var req ConnectBehaviourTreeNodeReq
 	context.BindJSON(&req)
 
-	errCode, errMsg, assetDoc, btDoc := readyBehaviourTreeDocForUpdate(req.AssetId, req.CurrentVersion)
-	if assetDoc != nil {
-		defer assetDoc.Release()
-	}
-	if errCode != common.Success {
-		context.JSON(http.StatusOK, gin.H{
-			"errCode":    errCode,
-			"errMessage": errMsg,
-		})
-		return
-	}
-
-	//Real Connect
-	errCode, errMsg, diffInfos := content_modifier.BehaviourTreeConnectNode(req.ParentNodeId, req.ChildNodeId, btDoc)
-	if errCode != common.Success {
-		context.JSON(http.StatusOK, gin.H{
-			"errCode":    errCode,
-			"errMessage": errMsg,
-		})
-		return
-	}
-
-	newVersion := req.CurrentVersion
-	if len(diffInfos) > 0 { // If DiffInfos Is Empty, Real Write Is Not Necessary And Keep The Version
-		errCode, errMsg, newVersion = writeBehaviourTreeDocForUpdate(assetDoc, btDoc)
-		if errCode != common.Success {
-			context.JSON(http.StatusOK, gin.H{
-				"errCode":    errCode,
-				"errMessage": errMsg,
-			})
-			return
-		}
-	}
-
-	//Calculate Modification Info
-	modificationInfo := BehaviourTreeNodeModification{
-		diffInfos,
-		req.CurrentVersion,
-		newVersion}
+	errCode, errMsg, modificationInfo := passBehaviourTreeDocumentModification(&req, func(req *ConnectBehaviourTreeNodeReq, btDoc *content_modifier.BehaviourTreeDocumentation) (common.ErrorCode, string, []content_modifier.BehaviourTreeNodeDiffInfo) {
+		return content_modifier.BehaviourTreeConnectNode(req.ParentNodeId, req.ChildNodeId, btDoc)
+	})
 
 	context.JSON(http.StatusOK, gin.H{
 		"errCode":          errCode,
@@ -205,45 +115,9 @@ func DisconnectBehaviourTreeNodeAPI(context *gin.Context) {
 	var req DisconnectBehaviourTreeNodeReq
 	context.BindJSON(&req)
 
-	errCode, errMsg, assetDoc, btDoc := readyBehaviourTreeDocForUpdate(req.AssetId, req.CurrentVersion)
-	if assetDoc != nil {
-		defer assetDoc.Release()
-	}
-	if errCode != common.Success {
-		context.JSON(http.StatusOK, gin.H{
-			"errCode":    errCode,
-			"errMessage": errMsg,
-		})
-		return
-	}
-
-	//Real Disconnect
-	errCode, errMsg, diffInfos := content_modifier.BehaviourTreeDisconnectNode(req.ChildNodeIds, btDoc)
-	if errCode != common.Success {
-		context.JSON(http.StatusOK, gin.H{
-			"errCode":    errCode,
-			"errMessage": errMsg,
-		})
-		return
-	}
-
-	newVersion := req.CurrentVersion
-	if len(diffInfos) > 0 { // If DiffInfos Is Empty, Real Write Is Not Necessary And Keep The Version
-		errCode, errMsg, newVersion = writeBehaviourTreeDocForUpdate(assetDoc, btDoc)
-		if errCode != common.Success {
-			context.JSON(http.StatusOK, gin.H{
-				"errCode":    errCode,
-				"errMessage": errMsg,
-			})
-			return
-		}
-	}
-
-	//Calculate Modification Info
-	modificationInfo := BehaviourTreeNodeModification{
-		diffInfos,
-		req.CurrentVersion,
-		newVersion}
+	errCode, errMsg, modificationInfo := passBehaviourTreeDocumentModification(&req, func(req *DisconnectBehaviourTreeNodeReq, btDoc *content_modifier.BehaviourTreeDocumentation) (common.ErrorCode, string, []content_modifier.BehaviourTreeNodeDiffInfo) {
+		return content_modifier.BehaviourTreeDisconnectNode(req.ChildNodeIds, btDoc)
+	})
 
 	context.JSON(http.StatusOK, gin.H{
 		"errCode":          errCode,
@@ -261,42 +135,9 @@ func RemoveBehaviourTreeNodeAPI(context *gin.Context) {
 	var req RemoveBehaviourTreeNodeReq
 	context.BindJSON(&req)
 
-	errCode, errMsg, assetDoc, btDoc := readyBehaviourTreeDocForUpdate(req.AssetId, req.CurrentVersion)
-	if assetDoc != nil {
-		defer assetDoc.Release()
-	}
-	if errCode != common.Success {
-		context.JSON(http.StatusOK, gin.H{
-			"errCode":    errCode,
-			"errMessage": errMsg,
-		})
-		return
-	}
-
-	//Real Remove
-	errCode, errMsg, diffInfos := content_modifier.BehaviourTreeRemoveNode(req.NodeIds, btDoc)
-	if errCode != common.Success {
-		context.JSON(http.StatusOK, gin.H{
-			"errCode":    errCode,
-			"errMessage": errMsg,
-		})
-		return
-	}
-
-	errCode, errMsg, newVersion := writeBehaviourTreeDocForUpdate(assetDoc, btDoc)
-	if errCode != common.Success {
-		context.JSON(http.StatusOK, gin.H{
-			"errCode":    errCode,
-			"errMessage": errMsg,
-		})
-		return
-	}
-
-	//Calculate Modification Info
-	modificationInfo := BehaviourTreeNodeModification{
-		diffInfos,
-		req.CurrentVersion,
-		newVersion}
+	errCode, errMsg, modificationInfo := passBehaviourTreeDocumentModification(&req, func(req *RemoveBehaviourTreeNodeReq, btDoc *content_modifier.BehaviourTreeDocumentation) (common.ErrorCode, string, []content_modifier.BehaviourTreeNodeDiffInfo) {
+		return content_modifier.BehaviourTreeRemoveNode(req.NodeIds, btDoc)
+	})
 
 	context.JSON(http.StatusOK, gin.H{
 		"errCode":          errCode,
@@ -305,45 +146,58 @@ func RemoveBehaviourTreeNodeAPI(context *gin.Context) {
 	})
 }
 
-func readyBehaviourTreeDocForUpdate(assetId string, requestVersion string) (common.ErrorCode, string, db.IAssetDocument, *content_modifier.BehaviourTreeDocumentation) {
+func passBehaviourTreeDocumentModification[T AssetModifier](req T, behaviourTreeModify func(req T, btDoc *content_modifier.BehaviourTreeDocumentation) (common.ErrorCode, string, []content_modifier.BehaviourTreeNodeDiffInfo)) (common.ErrorCode, string, *BehaviourTreeNodeModification) {
 	//Db btDoc
-	errCode, errMsg, assetDoc := db.ServerDatabase.GetAssetDocument(assetId, true)
+	errCode, errMsg, assetDoc := db.ServerDatabase.GetAssetDocument(req.GetAssetID(), true)
 	if errCode != common.Success {
-		return errCode, errMsg, nil, nil
+		return errCode, errMsg, nil
 	}
+	defer assetDoc.Release()
 
 	//detail
 	errCode, errMsg, assetDetail := assetDoc.ReadAsset()
 	if errCode != common.Success {
-		return errCode, errMsg, assetDoc, nil
+		return errCode, errMsg, nil
 	}
 
 	//Version Check
-	if assetDetail.AssetVersion != requestVersion {
-		return common.InvalidAssetVersion, common.InvalidAssetVersion.GetMsgFormat(assetDetail.AssetVersion, requestVersion), assetDoc, nil
+	if assetDetail.AssetVersion != req.GetCurrentVersion() {
+		return common.InvalidAssetVersion, common.InvalidAssetVersion.GetMsgFormat(assetDetail.AssetVersion, req.GetCurrentVersion()), nil
 	}
 
 	//Deserialization
 	var btDoc content_modifier.BehaviourTreeDocumentation
 	err := json.Unmarshal([]byte(assetDetail.AssetContent), &btDoc)
 	if err != nil {
-		return common.DeserializationError, common.DeserializationError.GetMsg(), assetDoc, nil
+		return common.DeserializationError, common.DeserializationError.GetMsg(), nil
 	}
 
-	return common.Success, "", assetDoc, &btDoc
-}
-
-func writeBehaviourTreeDocForUpdate(assetDoc db.IAssetDocument, btDoc *content_modifier.BehaviourTreeDocumentation) (common.ErrorCode, string, string) { //result errCode errMsg, newVersion
-	//Serialization
-	modifiedContent, err := json.Marshal(btDoc)
-	if err != nil {
-		return common.SerializationError, common.SerializationError.GetMsg(), ""
-	}
-
-	//DB Update
-	errCode, errMsg, newVersion := assetDoc.UpdateContent(string(modifiedContent))
+	// Real Modified Logic Pass
+	errCode, errMsg, diffInfos := behaviourTreeModify(req, &btDoc)
 	if errCode != common.Success {
-		return errCode, errMsg, ""
+		return errCode, errMsg, nil
 	}
-	return common.Success, "", newVersion
+
+	newVersion := req.GetCurrentVersion()
+	if len(diffInfos) > 0 { // just need real write data when there are some diffInfos
+		//Serialization
+		modifiedContent, err := json.Marshal(btDoc)
+		if err != nil {
+			return common.SerializationError, common.SerializationError.GetMsg(), nil
+		}
+
+		//DB Update
+		errCode, errMsg, newVersion = assetDoc.UpdateContent(string(modifiedContent))
+		if errCode != common.Success {
+			return errCode, errMsg, nil
+		}
+	}
+
+	//Calculate Modification Info
+	modificationInfo := BehaviourTreeNodeModification{
+		diffInfos,
+		req.GetCurrentVersion(),
+		newVersion}
+
+	return common.Success, "", &modificationInfo
 }

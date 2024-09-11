@@ -105,16 +105,18 @@ func BehaviourTreeMoveNode(movementInfos []BehaviourTreeNodeMovementItem, doc *B
 	return common.Success, "", resultDiff
 }
 
-func BehaviourTreeCreateNode(nodeType string, toPosition XYPosition, doc *BehaviourTreeDocumentation) (errCode common.ErrorCode, errMsg string, createdNode *LogicBtNode) {
+func BehaviourTreeCreateNode(nodeType string, toPosition XYPosition, doc *BehaviourTreeDocumentation) (common.ErrorCode, string, []BehaviourTreeNodeDiffInfo) {
 	//"bt_root" : BTRootNode, // Not Supported Now
 	//"bt_selector" : BTSelectorNode,
 	//"bt_sequence" : BTSequenceNode,
 	//"bt_simpleParallel" : BTSimpleParallelNode, Not Supported Now
 	//"bt_task" : BTTaskNode
+	diffInfos := make([]BehaviourTreeNodeDiffInfo, 0, 1)
 	if nodeType == Node_Selector || nodeType == Node_Sequence || nodeType == Node_Task {
 		newNode := LogicBtNode{uuid.New().String(), "", toPosition, nodeType, -1, nil}
 		doc.Nodes = append(doc.Nodes, newNode)
-		return common.Success, "", &newNode
+		diffInfos = []BehaviourTreeNodeDiffInfo{{nil, &newNode}}
+		return common.Success, "", diffInfos
 	}
 	return common.BtInvalidNodeType, common.BtInvalidNodeType.GetMsgFormat(nodeType), nil
 }
