@@ -8,6 +8,18 @@ import (
 	"time"
 )
 
+// "bt_root" : BTRootNode, // Not Supported Now
+// "bt_selector" : BTSelectorNode,
+// "bt_sequence" : BTSequenceNode,
+// "bt_simpleParallel" : BTSimpleParallelNode, Not Supported Now
+// "bt_task" : BTTaskNode
+const (
+	Node_Root     = "bt_root"
+	Node_Selector = "bt_selector"
+	Node_Sequence = "bt_sequence"
+	Node_Task     = "bt_task"
+)
+
 type XYPosition struct {
 	X float32 `json:"x" binding:"required"`
 	Y float32 `json:"y" binding:"required"`
@@ -15,6 +27,7 @@ type XYPosition struct {
 
 type LogicBtNode struct {
 	NodeId   string          `json:"id" binding:"required"`
+	ParentId string          `json:"parentId" binding:"required"`
 	Position XYPosition      `json:"position" binding:"required"`
 	NodeType string          `json:"type" binding:"required"`
 	Order    int             `json:"order" binding:"required"`
@@ -58,7 +71,7 @@ type BehaviourTreeNodeDiffInfo struct {
 }
 
 func BehaviourTreeCreateEmptyContent() (errCode common.ErrorCode, errMsg string, content string) {
-	initializedNodes := []LogicBtNode{{uuid.New().String(), XYPosition{100, 100}, "bt_root", 0, nil}}
+	initializedNodes := []LogicBtNode{{uuid.New().String(), "", XYPosition{100, 100}, Node_Root, 0, nil}}
 	BehaviourTreeDocumentation := BehaviourTreeDocumentation{
 		ModifyTimeStamp: time.Now().UTC().Unix(),
 		Nodes:           initializedNodes,
@@ -98,8 +111,8 @@ func BehaviourTreeCreateNode(nodeType string, toPosition XYPosition, doc *Behavi
 	//"bt_sequence" : BTSequenceNode,
 	//"bt_simpleParallel" : BTSimpleParallelNode, Not Supported Now
 	//"bt_task" : BTTaskNode
-	if nodeType == "bt_selector" || nodeType == "bt_sequence" || nodeType == "bt_task" {
-		newNode := LogicBtNode{uuid.New().String(), toPosition, nodeType, -1, nil}
+	if nodeType == Node_Selector || nodeType == Node_Sequence || nodeType == Node_Task {
+		newNode := LogicBtNode{uuid.New().String(), "", toPosition, nodeType, -1, nil}
 		doc.Nodes = append(doc.Nodes, newNode)
 		return common.Success, "", &newNode
 	}
@@ -114,7 +127,7 @@ func BehaviourTreeRemoveNode(nodeIds []string, doc *BehaviourTreeDocumentation) 
 		if slices.Contains(nodeIds, existNode.NodeId) {
 			// Need To Removed
 			diffInfos = append(diffInfos, BehaviourTreeNodeDiffInfo{&existNode, nil})
-			if existNode.NodeType == "bt_root" {
+			if existNode.NodeType == Node_Root {
 				return common.BtIllegalRemoveRoot, common.BtIllegalRemoveRoot.GetMsg(), nil
 			}
 
@@ -124,5 +137,87 @@ func BehaviourTreeRemoveNode(nodeIds []string, doc *BehaviourTreeDocumentation) 
 	}
 	doc.Nodes = reserveNodes
 
+	return common.Success, "", diffInfos
+}
+
+func BehaviourTreeConnectNode(parentId string, childId string, doc *BehaviourTreeDocumentation) (common.ErrorCode, string, []BehaviourTreeNodeDiffInfo) {
+	diffInfos := make([]BehaviourTreeNodeDiffInfo, 0, 1) // just only one diff when connecting node
+	pIdx := -1
+	cIdx := -1
+	for i, _ := range doc.Nodes {
+		if pIdx == -1 && doc.Nodes[i].NodeId == parentId {
+			pIdx = i
+		}
+		if cIdx == -1 && doc.Nodes[i].NodeId == childId {
+			cIdx = i
+		}
+
+		if pIdx > 0 && cIdx > 0 {
+			break
+		}
+	}
+
+	if pIdx >= 0 && cIdx >= 0 {
+		// Check Root Always Not Child
+		if doc.Nodes[cIdx].NodeType == Node_Root {
+			return common.BtConnectInvalidRootForChild, common.BtConnectInvalidRootForChild.GetMsgFormat(childId), nil
+		}
+		// Check Task Always Not Parent
+		if doc.Nodes[pIdx].NodeType == Node_Task {
+			return common.BtConnectInvalidTaskForParent, common.BtConnectInvalidTaskForParent.GetMsgFormat(parentId), nil
+		}
+
+		//TODO Front End Has Cycle Check, Consider Do Check In BackEnd
+
+		if doc.Nodes[cIdx].ParentId != parentId { //If The Client Already Connect To The Request Parent, Skip
+			preModifiedNode := doc.Nodes[cIdx]
+			doc.Nodes[cIdx].ParentId = parentId
+			postModifiedNode := doc.Nodes[cIdx]
+			diffInfos = append(diffInfos, BehaviourTreeNodeDiffInfo{&preModifiedNode, &postModifiedNode})
+		}
+		return common.Success, "", diffInfos
+	} else if pIdx < 0 {
+		return common.BtConnectInvalidParent, common.BtConnectInvalidParent.GetMsgFormat(parentId), nil
+	} else {
+		return common.BtConnectInvalidChild, common.BtConnectInvalidChild.GetMsgFormat(childId), nil
+	}
+
+}
+
+func BehaviourTreeDisconnectNode(childIds []string, doc *BehaviourTreeDocumentation) (common.ErrorCode, string, []BehaviourTreeNodeDiffInfo) {
+	diffInfos := make([]BehaviourTreeNodeDiffInfo, 0, len(childIds))
+
+	for i, _ := range doc.Nodes {
+		if slices.Contains(childIds, doc.Nodes[i].NodeId) {
+			if doc.Nodes[i].ParentId == "" {
+				return common.BtInvalidDisconnectNodeWithoutParent, common.BtInvalidDisconnectNodeWithoutParent.GetMsgFormat(doc.Nodes[i].NodeId), nil
+			}
+			//Logic Disconnect
+			preModifiedNode := doc.Nodes[i]
+			doc.Nodes[i].ParentId = ""
+			postModifiedNode := doc.Nodes[i]
+			diffInfos = append(diffInfos, BehaviourTreeNodeDiffInfo{&preModifiedNode, &postModifiedNode})
+		}
+	}
+
+	return common.Success, "", diffInfos
+
+}
+
+func BehaviourTreeDisconnectNodeByParentId(parentId string, doc *BehaviourTreeDocumentation) (common.ErrorCode, string, []BehaviourTreeNodeDiffInfo) {
+	if parentId == "" {
+		return common.BtConnectInvalidParent, common.BtConnectInvalidParent.GetMsgFormat("[Empty]"), nil
+	}
+
+	diffInfos := make([]BehaviourTreeNodeDiffInfo, 0, 4)
+	for i, _ := range doc.Nodes {
+		if doc.Nodes[i].ParentId == parentId {
+			//Logic Disconnect
+			preModifiedNode := doc.Nodes[i]
+			doc.Nodes[i].ParentId = ""
+			postModifiedNode := doc.Nodes[i]
+			diffInfos = append(diffInfos, BehaviourTreeNodeDiffInfo{&preModifiedNode, &postModifiedNode})
+		}
+	}
 	return common.Success, "", diffInfos
 }

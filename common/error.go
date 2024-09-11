@@ -32,6 +32,12 @@ const (
 	BtInvalidNodeType               ErrorCode = 31001
 	BtIllegalRemoveRoot             ErrorCode = 31010
 	BtInvalidNodeMovementParameters ErrorCode = 31020
+
+	BtConnectInvalidParent               ErrorCode = 31030
+	BtConnectInvalidChild                ErrorCode = 31031
+	BtConnectInvalidRootForChild         ErrorCode = 31032
+	BtConnectInvalidTaskForParent        ErrorCode = 31033
+	BtInvalidDisconnectNodeWithoutParent ErrorCode = 31034
 )
 
 var errorMsg = map[ErrorCode]string{
@@ -49,6 +55,12 @@ var errorMsg = map[ErrorCode]string{
 	BtInvalidNodeType:               "Invalid Behaviour Tree Node Type: %s",
 	BtIllegalRemoveRoot:             "Remove The Root Node In Behaviour Tree Is Illegal",
 	BtInvalidNodeMovementParameters: "Invalid Movement Params Length(NodeIds) %d != Length(toPositions) %d",
+
+	BtConnectInvalidParent:               "Invalid Parent Id: %s For Connect/Disconnect",
+	BtConnectInvalidChild:                "Invalid Child Id: %s For Connect/Disconnect",
+	BtConnectInvalidRootForChild:         "Invalid Parent Id: %s Root Always Not Child",
+	BtConnectInvalidTaskForParent:        "Invalid Child Id: %s Task Always Not Parent",
+	BtInvalidDisconnectNodeWithoutParent: "Invalid Child Id: %s, Disconnect Node Without Parent",
 }
 
 func (errCode ErrorCode) GetMsg() string {

@@ -87,12 +87,10 @@ type SqliteSolutionManager struct {
 }
 
 func (solutionMgr *SqliteSolutionManager) Release() {
-	if solutionMgr != nil {
-		if solutionMgr.isWriteable {
-			solutionMgr.locker.Unlock()
-		} else {
-			solutionMgr.locker.RUnlock()
-		}
+	if solutionMgr.isWriteable {
+		solutionMgr.locker.Unlock()
+	} else {
+		solutionMgr.locker.RUnlock()
 	}
 }
 
@@ -250,12 +248,10 @@ func (assetSetMgr *SqliteAssetSetManager) CreateAssetSet(solutionId string, asse
 }
 
 func (assetSetMgr *SqliteAssetSetManager) Release() {
-	if assetSetMgr != nil {
-		if assetSetMgr.isWriteable {
-			assetSetMgr.locker.Unlock()
-		} else {
-			assetSetMgr.locker.RUnlock()
-		}
+	if assetSetMgr.isWriteable {
+		assetSetMgr.locker.Unlock()
+	} else {
+		assetSetMgr.locker.RUnlock()
 	}
 }
 
@@ -347,12 +343,10 @@ func (assetMgr *SqliteAssetManager) CreateAsset(assetSetId string, assetType str
 }
 
 func (assetMgr *SqliteAssetManager) Release() {
-	if assetMgr != nil {
-		if assetMgr.isWriteable {
-			assetMgr.locker.Unlock()
-		} else {
-			assetMgr.locker.RUnlock()
-		}
+	if assetMgr.isWriteable {
+		assetMgr.locker.Unlock()
+	} else {
+		assetMgr.locker.RUnlock()
 	}
 }
 
@@ -405,11 +399,9 @@ func (dbDoc *SqliteAssetDocument) ReadAsset() (common.ErrorCode, string, *common
 }
 
 func (dbDoc *SqliteAssetDocument) Release() {
-	if dbDoc != nil {
-		if dbDoc.isWriteable {
-			dbDoc.locker.Unlock()
-		} else {
-			dbDoc.locker.RUnlock()
-		}
+	if dbDoc.isWriteable {
+		dbDoc.locker.Unlock()
+	} else {
+		dbDoc.locker.RUnlock()
 	}
 }

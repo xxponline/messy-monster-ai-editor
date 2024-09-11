@@ -28,6 +28,19 @@ type RemoveBehaviourTreeNodeReq struct {
 	CurrentVersion string   `json:"currentVersion" binding:"required"`
 }
 
+type ConnectBehaviourTreeNodeReq struct {
+	AssetId        string `json:"assetId" binding:"required"`
+	ParentNodeId   string `json:"parentNodeId" binding:"required"`
+	ChildNodeId    string `json:"childNodeId" binding:"required"`
+	CurrentVersion string `json:"currentVersion" binding:"required"`
+}
+
+type DisconnectBehaviourTreeNodeReq struct {
+	AssetId        string `json:"assetId" binding:"required"`
+	ChildNodeId    string `json:"childNodeId" binding:"required"`
+	CurrentVersion string `json:"currentVersion" binding:"required"`
+}
+
 type UpdateBehaviourTreeNodeSettingsReq struct {
 	AssetId        string          `json:"assetId" binding:"required"`
 	NodeId         string          `json:"nodeId" binding:"required"`
@@ -46,7 +59,9 @@ func CreateBehaviourTreeNodeAPI(context *gin.Context) {
 	context.BindJSON(&req)
 
 	errCode, errMsg, assetDoc, btDoc := readyBehaviourTreeDocForUpdate(req.AssetId, req.CurrentVersion)
-	defer assetDoc.Release()
+	if assetDoc != nil {
+		defer assetDoc.Release()
+	}
 	if errCode != common.Success {
 		context.JSON(http.StatusOK, gin.H{
 			"errCode":    errCode,
@@ -92,7 +107,9 @@ func MoveBehaviourTreeNodeAPI(context *gin.Context) {
 	context.BindJSON(&req)
 
 	errCode, errMsg, assetDoc, btDoc := readyBehaviourTreeDocForUpdate(req.AssetId, req.CurrentVersion)
-	defer assetDoc.Release()
+	if assetDoc != nil {
+		defer assetDoc.Release()
+	}
 	if errCode != common.Success {
 		context.JSON(http.StatusOK, gin.H{
 			"errCode":    errCode,
@@ -133,11 +150,58 @@ func MoveBehaviourTreeNodeAPI(context *gin.Context) {
 	})
 }
 
-func LinkBehaviourTreeNode() {
+func ConnectBehaviourTreeNodeAPI(context *gin.Context) {
+	var req ConnectBehaviourTreeNodeReq
+	context.BindJSON(&req)
 
+	errCode, errMsg, assetDoc, btDoc := readyBehaviourTreeDocForUpdate(req.AssetId, req.CurrentVersion)
+	if assetDoc != nil {
+		defer assetDoc.Release()
+	}
+	if errCode != common.Success {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    errCode,
+			"errMessage": errMsg,
+		})
+		return
+	}
+
+	//Real Connect
+	errCode, errMsg, diffInfos := content_modifier.BehaviourTreeConnectNode(req.ParentNodeId, req.ChildNodeId, btDoc)
+	if errCode != common.Success {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    errCode,
+			"errMessage": errMsg,
+		})
+		return
+	}
+
+	newVersion := req.CurrentVersion
+	if len(diffInfos) > 0 { // If DiffInfos Is Empty, Real Write Is Not Necessary And Keep The Version
+		errCode, errMsg, newVersion = writeBehaviourTreeDocForUpdate(assetDoc, btDoc)
+		if errCode != common.Success {
+			context.JSON(http.StatusOK, gin.H{
+				"errCode":    errCode,
+				"errMessage": errMsg,
+			})
+			return
+		}
+	}
+
+	//Calculate Modification Info
+	modificationInfo := BehaviourTreeNodeModification{
+		diffInfos,
+		req.CurrentVersion,
+		newVersion}
+
+	context.JSON(http.StatusOK, gin.H{
+		"errCode":          errCode,
+		"errMessage":       errMsg,
+		"modificationInfo": modificationInfo,
+	})
 }
 
-func ModifyBehaviourTreeNode() {
+func ModifyBehaviourTreeNode(context *gin.Context) {
 
 }
 
@@ -146,7 +210,9 @@ func RemoveBehaviourTreeNodeAPI(context *gin.Context) {
 	context.BindJSON(&req)
 
 	errCode, errMsg, assetDoc, btDoc := readyBehaviourTreeDocForUpdate(req.AssetId, req.CurrentVersion)
-	defer assetDoc.Release()
+	if assetDoc != nil {
+		defer assetDoc.Release()
+	}
 	if errCode != common.Success {
 		context.JSON(http.StatusOK, gin.H{
 			"errCode":    errCode,
@@ -197,19 +263,19 @@ func readyBehaviourTreeDocForUpdate(assetId string, requestVersion string) (comm
 	//detail
 	errCode, errMsg, assetDetail := assetDoc.ReadAsset()
 	if errCode != common.Success {
-		return errCode, errMsg, nil, nil
+		return errCode, errMsg, assetDoc, nil
 	}
 
 	//Version Check
 	if assetDetail.AssetVersion != requestVersion {
-		return common.InvalidAssetVersion, common.InvalidAssetVersion.GetMsgFormat(assetDetail.AssetVersion, requestVersion), nil, nil
+		return common.InvalidAssetVersion, common.InvalidAssetVersion.GetMsgFormat(assetDetail.AssetVersion, requestVersion), assetDoc, nil
 	}
 
 	//Deserialization
 	var btDoc content_modifier.BehaviourTreeDocumentation
 	err := json.Unmarshal([]byte(assetDetail.AssetContent), &btDoc)
 	if err != nil {
-		return common.DeserializationError, common.DeserializationError.GetMsg(), nil, nil
+		return common.DeserializationError, common.DeserializationError.GetMsg(), assetDoc, nil
 	}
 
 	return common.Success, "", assetDoc, &btDoc
