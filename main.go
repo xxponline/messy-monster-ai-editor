@@ -14,10 +14,6 @@ func main() {
 		panic(errMsg)
 	}
 
-	var solutionMgr db.ISolutionManager
-	errCode, errMsg, solutionMgr = db.ServerDatabase.GetSolutionManager(false)
-	defer solutionMgr.Release()
-
 	//var items []common.SolutionInfoItem
 	//errCode, errMsg, items = solutionMgr.ListSolutions()
 	//fmt.Printf("===>>> %d \n", errCode)

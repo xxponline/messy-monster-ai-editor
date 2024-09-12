@@ -66,8 +66,25 @@ type BehaviourTreeNodeMovementItem struct {
 }
 
 type BehaviourTreeNodeDiffInfo struct {
+	ModifiedNodeId   string       `json:"modifiedNodeId" binding:"required"`
 	PreModifiedNode  *LogicBtNode `json:"preModifiedNode" binding:"required"`
 	PostModifiedNode *LogicBtNode `json:"postModifiedNode" binding:"required"`
+}
+
+// in this function, we just use the postModifiedNode of new diff info to replace the same info in exist array
+// we are not care the diff info is valid or not (for instance the post modified node is totally same as the previous one)
+func mergeOrAppendNodeDiffInfo(nodeDiffInfos []BehaviourTreeNodeDiffInfo, newDiffInfos ...BehaviourTreeNodeDiffInfo) []BehaviourTreeNodeDiffInfo {
+	for _, newDiffInfo := range newDiffInfos {
+		existNodeIdx := slices.IndexFunc(nodeDiffInfos, func(info BehaviourTreeNodeDiffInfo) bool {
+			return info.ModifiedNodeId == newDiffInfo.ModifiedNodeId
+		})
+		if existNodeIdx > -1 {
+			nodeDiffInfos[existNodeIdx].PostModifiedNode = newDiffInfo.PostModifiedNode
+		} else {
+			nodeDiffInfos = append(nodeDiffInfos, newDiffInfo)
+		}
+	}
+	return nodeDiffInfos
 }
 
 func BehaviourTreeCreateEmptyContent() (errCode common.ErrorCode, errMsg string, content string) {
@@ -89,20 +106,36 @@ func BehaviourTreeCreateEmptyContent() (errCode common.ErrorCode, errMsg string,
 
 func BehaviourTreeMoveNode(movementInfos []BehaviourTreeNodeMovementItem, doc *BehaviourTreeDocumentation) (errCode common.ErrorCode, errMsg string, updateNodeDiffs []BehaviourTreeNodeDiffInfo) {
 
-	resultDiff := make([]BehaviourTreeNodeDiffInfo, 0, len(doc.Nodes))
+	parentIdsForMovedNode := make([]string, 0, len(movementInfos)) //For Reorder
+	diffInfos := make([]BehaviourTreeNodeDiffInfo, 0, len(doc.Nodes))
 
 	for nIdx, _ := range doc.Nodes {
 		pIdx := slices.IndexFunc(movementInfos, func(item BehaviourTreeNodeMovementItem) bool {
 			return item.NodeId == doc.Nodes[nIdx].NodeId
 		})
 		if pIdx > -1 {
-			preUpdateNode := doc.Nodes[nIdx]
-			doc.Nodes[nIdx].Position = movementInfos[pIdx].ToPosition
-			afterUpdateNode := doc.Nodes[nIdx]
-			resultDiff = append(resultDiff, BehaviourTreeNodeDiffInfo{PreModifiedNode: &preUpdateNode, PostModifiedNode: &afterUpdateNode})
+			preModifiedNode := doc.Nodes[nIdx]
+			modifyingNode := &doc.Nodes[nIdx]
+
+			modifyingNode.Position = movementInfos[pIdx].ToPosition
+			if modifyingNode.ParentId != "" {
+				if slices.Index(parentIdsForMovedNode, modifyingNode.ParentId) < 0 {
+					parentIdsForMovedNode = append(parentIdsForMovedNode, modifyingNode.ParentId)
+				}
+			}
+
+			postModifiedNode := *modifyingNode
+			diffInfos = append(diffInfos, BehaviourTreeNodeDiffInfo{PreModifiedNode: &preModifiedNode, PostModifiedNode: &postModifiedNode})
 		}
 	}
-	return common.Success, "", resultDiff
+
+	//Reorder
+	for _, parentId := range parentIdsForMovedNode {
+		//Reorder
+		diffInfos = mergeOrAppendNodeDiffInfo(diffInfos, reorderBehaviourTreeNodesByParentId(doc, parentId)...)
+	}
+
+	return common.Success, "", diffInfos
 }
 
 func BehaviourTreeCreateNode(nodeType string, toPosition XYPosition, doc *BehaviourTreeDocumentation) (common.ErrorCode, string, []BehaviourTreeNodeDiffInfo) {
@@ -115,7 +148,7 @@ func BehaviourTreeCreateNode(nodeType string, toPosition XYPosition, doc *Behavi
 	if nodeType == Node_Selector || nodeType == Node_Sequence || nodeType == Node_Task {
 		newNode := LogicBtNode{uuid.New().String(), "", toPosition, nodeType, -1, nil}
 		doc.Nodes = append(doc.Nodes, newNode)
-		diffInfos = []BehaviourTreeNodeDiffInfo{{nil, &newNode}}
+		diffInfos = []BehaviourTreeNodeDiffInfo{{newNode.NodeId, nil, &newNode}}
 		return common.Success, "", diffInfos
 	}
 	return common.BtInvalidNodeType, common.BtInvalidNodeType.GetMsgFormat(nodeType), nil
@@ -123,21 +156,45 @@ func BehaviourTreeCreateNode(nodeType string, toPosition XYPosition, doc *Behavi
 
 func BehaviourTreeRemoveNode(nodeIds []string, doc *BehaviourTreeDocumentation) (common.ErrorCode, string, []BehaviourTreeNodeDiffInfo) {
 
+	disconnectedParentIds := make([]string, 0, len(nodeIds)) //For Reorder
+
 	diffInfos := make([]BehaviourTreeNodeDiffInfo, 0, len(nodeIds))
 	reserveNodes := make([]LogicBtNode, 0, len(doc.Nodes))
+	removedNodeIds := make([]string, 0, len(nodeIds)) // For Disconnect Children
 	for _, existNode := range doc.Nodes {
-		if slices.Contains(nodeIds, existNode.NodeId) {
-			// Need To Removed
-			diffInfos = append(diffInfos, BehaviourTreeNodeDiffInfo{&existNode, nil})
+		if slices.Contains(nodeIds, existNode.NodeId) { // Need To Removed
 			if existNode.NodeType == Node_Root {
 				return common.BtIllegalRemoveRoot, common.BtIllegalRemoveRoot.GetMsg(), nil
 			}
 
+			// For Reorder
+			if existNode.ParentId != "" {
+				if slices.Index(disconnectedParentIds, existNode.ParentId) < 0 {
+					disconnectedParentIds = append(disconnectedParentIds, existNode.ParentId)
+				}
+			}
+			removedNodeIds = append(removedNodeIds, existNode.NodeId)
+			diffInfos = append(diffInfos, BehaviourTreeNodeDiffInfo{existNode.NodeId, &existNode, nil})
 		} else {
 			reserveNodes = append(reserveNodes, existNode)
 		}
 	}
 	doc.Nodes = reserveNodes
+
+	//Reorder
+	for _, parentId := range disconnectedParentIds {
+		//Reorder
+		diffInfos = mergeOrAppendNodeDiffInfo(diffInfos, reorderBehaviourTreeNodesByParentId(doc, parentId)...)
+	}
+
+	//Disconnect Children After Removed Node Because It's Able To Avoid Disconnect Some Node Which Is Removed, It Will Reduce Some Calculate Of DiffInfos Merge
+	for _, removedNodeId := range removedNodeIds {
+		errCode, errMsg, diffInfosForDisconnect := BehaviourTreeDisconnectNodeByParentId(removedNodeId, doc)
+		if errCode != common.Success {
+			return errCode, errMsg, nil
+		}
+		diffInfos = mergeOrAppendNodeDiffInfo(diffInfos, diffInfosForDisconnect...)
+	}
 
 	return common.Success, "", diffInfos
 }
@@ -175,8 +232,12 @@ func BehaviourTreeConnectNode(parentId string, childId string, doc *BehaviourTre
 			preModifiedNode := doc.Nodes[cIdx]
 			doc.Nodes[cIdx].ParentId = parentId
 			postModifiedNode := doc.Nodes[cIdx]
-			diffInfos = append(diffInfos, BehaviourTreeNodeDiffInfo{&preModifiedNode, &postModifiedNode})
+			diffInfos = append(diffInfos, BehaviourTreeNodeDiffInfo{preModifiedNode.NodeId, &preModifiedNode, &postModifiedNode})
 		}
+
+		//Reorder
+		diffInfos = mergeOrAppendNodeDiffInfo(diffInfos, reorderBehaviourTreeNodesByParentId(doc, parentId)...)
+
 		return common.Success, "", diffInfos
 	} else if pIdx < 0 {
 		return common.BtConnectInvalidParent, common.BtConnectInvalidParent.GetMsgFormat(parentId), nil
@@ -188,7 +249,8 @@ func BehaviourTreeConnectNode(parentId string, childId string, doc *BehaviourTre
 
 func BehaviourTreeDisconnectNode(childIds []string, doc *BehaviourTreeDocumentation) (common.ErrorCode, string, []BehaviourTreeNodeDiffInfo) {
 	diffInfos := make([]BehaviourTreeNodeDiffInfo, 0, len(childIds))
-
+	disconnectedParentIds := make([]string, 0, len(childIds))
+	//Disconnect
 	for i, _ := range doc.Nodes {
 		if slices.Contains(childIds, doc.Nodes[i].NodeId) {
 			if doc.Nodes[i].ParentId == "" {
@@ -196,10 +258,23 @@ func BehaviourTreeDisconnectNode(childIds []string, doc *BehaviourTreeDocumentat
 			}
 			//Logic Disconnect
 			preModifiedNode := doc.Nodes[i]
-			doc.Nodes[i].ParentId = ""
-			postModifiedNode := doc.Nodes[i]
-			diffInfos = append(diffInfos, BehaviourTreeNodeDiffInfo{&preModifiedNode, &postModifiedNode})
+			modifyingNode := &doc.Nodes[i]
+
+			if slices.Index(disconnectedParentIds, modifyingNode.ParentId) < 0 {
+				disconnectedParentIds = append(disconnectedParentIds, modifyingNode.ParentId)
+			}
+			modifyingNode.ParentId = ""
+			modifyingNode.Order = -1
+
+			postModifiedNode := *modifyingNode
+			diffInfos = append(diffInfos, BehaviourTreeNodeDiffInfo{preModifiedNode.NodeId, &preModifiedNode, &postModifiedNode})
 		}
+	}
+
+	//Reorder
+	for _, parentId := range disconnectedParentIds {
+		//Reorder
+		diffInfos = mergeOrAppendNodeDiffInfo(diffInfos, reorderBehaviourTreeNodesByParentId(doc, parentId)...)
 	}
 
 	return common.Success, "", diffInfos
@@ -216,10 +291,46 @@ func BehaviourTreeDisconnectNodeByParentId(parentId string, doc *BehaviourTreeDo
 		if doc.Nodes[i].ParentId == parentId {
 			//Logic Disconnect
 			preModifiedNode := doc.Nodes[i]
-			doc.Nodes[i].ParentId = ""
-			postModifiedNode := doc.Nodes[i]
-			diffInfos = append(diffInfos, BehaviourTreeNodeDiffInfo{&preModifiedNode, &postModifiedNode})
+			modifyingNode := &doc.Nodes[i]
+
+			modifyingNode.ParentId = ""
+			modifyingNode.Order = -1
+			
+			postModifiedNode := *modifyingNode
+			diffInfos = append(diffInfos, BehaviourTreeNodeDiffInfo{preModifiedNode.NodeId, &preModifiedNode, &postModifiedNode})
 		}
 	}
+
+	//Reorder
+	diffInfos = mergeOrAppendNodeDiffInfo(diffInfos, reorderBehaviourTreeNodesByParentId(doc, parentId)...)
+
 	return common.Success, "", diffInfos
+}
+
+func reorderBehaviourTreeNodesByParentId(doc *BehaviourTreeDocumentation, parentId string) []BehaviourTreeNodeDiffInfo {
+	reorderingNodes := make([]*LogicBtNode, 0, 8)
+	for i, _ := range doc.Nodes {
+		n := &doc.Nodes[i]
+		if n.ParentId == parentId {
+			reorderingNodes = append(reorderingNodes, n)
+		}
+	}
+
+	diffInfos := make([]BehaviourTreeNodeDiffInfo, 0, len(reorderingNodes)/2)
+	if len(reorderingNodes) > 0 {
+		slices.SortFunc(reorderingNodes, func(a, b *LogicBtNode) int {
+			return (int)(a.Position.X - b.Position.X)
+		})
+
+		for j, _ := range reorderingNodes {
+			if reorderingNodes[j].Order != j {
+				preModifiedNode := *reorderingNodes[j]
+				reorderingNodes[j].Order = j
+				postModifiedNode := *reorderingNodes[j]
+
+				diffInfos = append(diffInfos, BehaviourTreeNodeDiffInfo{preModifiedNode.NodeId, &preModifiedNode, &postModifiedNode})
+			}
+		}
+	}
+	return diffInfos
 }
