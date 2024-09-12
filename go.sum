@@ -1,3 +1,5 @@
+git.maze.io/go/math32 v0.0.0-20181106113604-c78ed91899f1 h1:VptAfeYGT/FPuzWFzyvne+vdXT881tTmEMhV+txQ+E0=
+git.maze.io/go/math32 v0.0.0-20181106113604-c78ed91899f1/go.mod h1:bJoNp9NkyV0uYcHyBBgt/o4wVEVc8wfGXFBV7qgPReE=
 github.com/bytedance/sonic v1.11.6 h1:oUp34TzMlL+OY1OUWxHqsdkgC/Zfc85zGqw9siXjrc0=
 github.com/bytedance/sonic v1.11.6/go.mod h1:LysEHSvpvDySVdC2f87zGWf6CIKJcAvqab1ZaiQtds4=
 github.com/bytedance/sonic/loader v0.1.1 h1:c+e5Pt1k/cy5wMveRDyk2X4B9hF4g7an8N3zCYjJFNM=
@@ -89,5 +91,7 @@ gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8
 gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
+maze.io/x/math32 v0.0.0-20181106113604-c78ed91899f1 h1:SgIJGhlYkU+wmyP0xBEOdLVRIwVR4HSp/9kfv1BSvKQ=
+maze.io/x/math32 v0.0.0-20181106113604-c78ed91899f1/go.mod h1:OL5aVu+KUQ0mSadkiIseNiKIX6dJ2Ul1RlNWSMCP5y8=
 nullprogram.com/x/optparse v1.0.0/go.mod h1:KdyPE+Igbe0jQUrVfMqDMeJQIJZEuyV7pjYmp6pbG50=
 rsc.io/pdf v0.1.1/go.mod h1:n8OzWcQ6Sp37PL01nO98y4iUCRdTGarVfzxY20ICaU4=

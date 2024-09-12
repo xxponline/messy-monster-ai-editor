@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
+	"maze.io/x/math32"
 	"messy-monster-ai-editor/common"
 	"time"
 )
@@ -114,18 +115,19 @@ func BehaviourTreeMoveNode(movementInfos []BehaviourTreeNodeMovementItem, doc *B
 			return item.NodeId == doc.Nodes[nIdx].NodeId
 		})
 		if pIdx > -1 {
-			preModifiedNode := doc.Nodes[nIdx]
 			modifyingNode := &doc.Nodes[nIdx]
-
-			modifyingNode.Position = movementInfos[pIdx].ToPosition
-			if modifyingNode.ParentId != "" {
-				if slices.Index(parentIdsForMovedNode, modifyingNode.ParentId) < 0 {
-					parentIdsForMovedNode = append(parentIdsForMovedNode, modifyingNode.ParentId)
+			if math32.Abs(modifyingNode.Position.X-movementInfos[pIdx].ToPosition.X) > 0.05 || math32.Abs(modifyingNode.Position.Y-movementInfos[pIdx].ToPosition.Y) > 0.05 {
+				preModifiedNode := *modifyingNode
+				modifyingNode.Position = movementInfos[pIdx].ToPosition
+				if modifyingNode.ParentId != "" {
+					if slices.Index(parentIdsForMovedNode, modifyingNode.ParentId) < 0 {
+						parentIdsForMovedNode = append(parentIdsForMovedNode, modifyingNode.ParentId)
+					}
 				}
-			}
 
-			postModifiedNode := *modifyingNode
-			diffInfos = append(diffInfos, BehaviourTreeNodeDiffInfo{PreModifiedNode: &preModifiedNode, PostModifiedNode: &postModifiedNode})
+				postModifiedNode := *modifyingNode
+				diffInfos = append(diffInfos, BehaviourTreeNodeDiffInfo{PreModifiedNode: &preModifiedNode, PostModifiedNode: &postModifiedNode})
+			}
 		}
 	}
 
@@ -295,7 +297,7 @@ func BehaviourTreeDisconnectNodeByParentId(parentId string, doc *BehaviourTreeDo
 
 			modifyingNode.ParentId = ""
 			modifyingNode.Order = -1
-			
+
 			postModifiedNode := *modifyingNode
 			diffInfos = append(diffInfos, BehaviourTreeNodeDiffInfo{preModifiedNode.NodeId, &preModifiedNode, &postModifiedNode})
 		}

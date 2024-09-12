@@ -7,9 +7,11 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.22
 	golang.org/x/exp v0.0.0-20240904232852-e7e105dedf7e
+	maze.io/x/math32 v0.0.0-20181106113604-c78ed91899f1
 )
 
 require (
+	git.maze.io/go/math32 v0.0.0-20181106113604-c78ed91899f1 // indirect
 	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
 	github.com/cloudwego/base64x v0.1.4 // indirect
