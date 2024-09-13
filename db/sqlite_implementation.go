@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"github.com/google/uuid"
 	"messy-monster-ai-editor/common"
 	"sync"
@@ -86,6 +87,55 @@ type SqliteSolutionManager struct {
 	locker      *sync.RWMutex
 }
 
+func (solutionMgr *SqliteSolutionManager) SubmitSolutionMeta(solutionId string, solutionMeta json.RawMessage) (errCode common.ErrorCode, errMsg string, solutionInfo *common.SolutionDetailInfo) {
+	{
+		solutionMetaText, err := json.Marshal(solutionMeta)
+		if err != nil {
+			return common.DeserializationError, err.Error(), nil
+		}
+
+		updateSQL := `UPDATE ai_solutions SET solutionMeta = ?, solutionVersion = ? WHERE id = ?`
+		statement, err := solutionMgr.sqliteDb.Prepare(updateSQL)
+		if err != nil {
+			return common.DataBaseError, err.Error(), nil
+		}
+		defer statement.Close()
+
+		_, err = statement.Exec(solutionMetaText, uuid.New(), solutionId)
+		if err != nil {
+			return common.DataBaseError, err.Error(), nil
+		}
+	}
+
+	return solutionMgr.ReadSolutionDetail(solutionId)
+}
+
+func (solutionMgr *SqliteSolutionManager) ReadSolutionDetail(solutionId string) (errCode common.ErrorCode, errMsg string, solutionInfo *common.SolutionDetailInfo) {
+	querySQL := `SELECT id, solutionName, solutionMeta, solutionVersion FROM ai_solutions WHERE id = ?`
+	{
+		statement, err := solutionMgr.sqliteDb.Prepare(querySQL) // Prepare statement.
+		if err != nil {
+			return common.DataBaseError, err.Error(), nil
+		}
+		defer statement.Close()
+
+		resultRow := statement.QueryRow(solutionId)
+		var content common.SolutionDetailInfo
+		var solutionMetaText string
+		err = resultRow.Scan(&content.SolutionId, &content.SolutionName, &solutionMetaText, &content.SolutionVersion)
+		if err != nil {
+			return common.DataBaseError, err.Error(), nil
+		}
+
+		err = json.Unmarshal([]byte(solutionMetaText), &content.SolutionMeta)
+		if err != nil {
+			return common.DeserializationError, err.Error(), nil
+		}
+
+		return common.Success, "", &content
+	}
+}
+
 func (solutionMgr *SqliteSolutionManager) Release() {
 	if solutionMgr.isWriteable {
 		solutionMgr.locker.Unlock()
@@ -94,8 +144,8 @@ func (solutionMgr *SqliteSolutionManager) Release() {
 	}
 }
 
-func (solutionMgr *SqliteSolutionManager) ListSolutions() (common.ErrorCode, string, []common.SolutionInfoItem) {
-	querySQL := `SELECT id, solutionName FROM ai_solutions`
+func (solutionMgr *SqliteSolutionManager) ListSolutions() (common.ErrorCode, string, []common.SolutionSummaryInfoItem) {
+	querySQL := `SELECT id, solutionName,solutionVersion FROM ai_solutions`
 	{
 		statement, err := solutionMgr.sqliteDb.Prepare(querySQL) // Prepare statement.
 		if err != nil {
@@ -109,10 +159,10 @@ func (solutionMgr *SqliteSolutionManager) ListSolutions() (common.ErrorCode, str
 		}
 		defer rows.Close()
 
-		var resultSolutions []common.SolutionInfoItem
+		var resultSolutions []common.SolutionSummaryInfoItem
 		for rows.Next() {
-			var solutionInfo common.SolutionInfoItem
-			rows.Scan(&solutionInfo.SolutionId, &solutionInfo.SolutionName)
+			var solutionInfo common.SolutionSummaryInfoItem
+			rows.Scan(&solutionInfo.SolutionId, &solutionInfo.SolutionName, &solutionInfo.SolutionVersion)
 			resultSolutions = append(resultSolutions, solutionInfo)
 		}
 		return common.Success, "", resultSolutions

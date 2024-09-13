@@ -16,6 +16,8 @@ const (
 
 	DuplicatedSolutionName ErrorCode = 20001
 	InvalidSolution        ErrorCode = 20002
+	InvalidSolutionVersion ErrorCode = 20003
+
 	DuplicatedAssetSetName ErrorCode = 20010
 	InvalidAssetSet        ErrorCode = 20011
 	DuplicatedAssetName    ErrorCode = 20021
@@ -43,6 +45,8 @@ const (
 var errorMsg = map[ErrorCode]string{
 	InvalidSolution:        "Invalid Solution : SolutionId %s ",
 	DuplicatedSolutionName: "Duplicated Solution Name %s ",
+	InvalidSolutionVersion: "Invalid Solution Version For Modification Exist Version: %s Request Version: %s",
+
 	DuplicatedAssetSetName: "Duplicated AssetSet Name %s",
 	InvalidAssetSet:        "Invalid AssetSet : AssetSet Id %s ",
 	DuplicatedAssetName:    "Duplicated Asset Name: %s",

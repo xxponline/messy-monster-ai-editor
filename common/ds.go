@@ -1,8 +1,16 @@
 package common
 
-type SolutionInfoItem struct {
-	SolutionId   string `json:"solutionId" binding:"required"`
-	SolutionName string `json:"solutionName" binding:"required"`
+import "encoding/json"
+
+type SolutionSummaryInfoItem struct {
+	SolutionId      string `json:"solutionId" binding:"required"`
+	SolutionName    string `json:"solutionName" binding:"required"`
+	SolutionVersion string `json:"solutionVersion" binding:"required"`
+}
+
+type SolutionDetailInfo struct {
+	SolutionSummaryInfoItem
+	SolutionMeta json.RawMessage `json:"solutionMeta" binding:"required"`
 }
 
 type AssetSetInfoItem struct {

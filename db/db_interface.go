@@ -1,6 +1,7 @@
 package db
 
 import (
+	"encoding/json"
 	"messy-monster-ai-editor/common"
 )
 
@@ -14,8 +15,10 @@ type IAiEditorDatabase interface {
 
 type ISolutionManager interface {
 	Release()
-	ListSolutions() (common.ErrorCode, string, []common.SolutionInfoItem)
+	ListSolutions() (common.ErrorCode, string, []common.SolutionSummaryInfoItem)
 	CreateNewSolution(solutionName string) (common.ErrorCode, string)
+	ReadSolutionDetail(solutionId string) (errCode common.ErrorCode, errMsg string, solutionInfo *common.SolutionDetailInfo)
+	SubmitSolutionMeta(solutionId string, solutionMeta json.RawMessage) (errCode common.ErrorCode, errMsg string, solutionInfo *common.SolutionDetailInfo)
 }
 
 type IAssetSetManager interface {
