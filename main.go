@@ -24,8 +24,9 @@ func main() {
 	//fmt.Println(uuid.String())
 
 	r := gin.Default()
-	asset_organization.InitializeAssetManagement(r.Group("AssetManagement"))
-	asset_content.InitializeAssetManagement(r.Group("AssetContentModifier"))
+	APIRout := r.Group("API")
+	asset_organization.InitializeAssetManagement(APIRout.Group("AssetManagement"))
+	asset_content.InitializeAssetManagement(APIRout.Group("AssetContentModifier"))
 	r.Run("localhost:8000") // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
 }
 
