@@ -29,8 +29,9 @@ func (req *BaseBehaviourTreeModificationReq) GetCurrentVersion() string {
 
 type CreateBehaviourTreeNodeReq struct {
 	BaseBehaviourTreeModificationReq
-	Position content_modifier.XYPosition `json:"position" binding:"required"`
-	NodeType string                      `json:"nodeType" binding:"required"`
+	Position        content_modifier.XYPosition `json:"position" binding:"required"`
+	NodeType        string                      `json:"nodeType" binding:"required"`
+	InitialSettings json.RawMessage             `json:"initialSettings" binding:"omitempty"`
 }
 
 type MoveBehaviourTreeNodeReq struct {
@@ -71,7 +72,7 @@ func CreateBehaviourTreeNodeAPI(context *gin.Context) {
 	context.BindJSON(&req)
 
 	errCode, errMsg, modificationInfo := passBehaviourTreeDocumentModification(&req, func(req *CreateBehaviourTreeNodeReq, btDoc *content_modifier.BehaviourTreeDocumentation) (common.ErrorCode, string, []content_modifier.BehaviourTreeNodeDiffInfo) {
-		return content_modifier.BehaviourTreeCreateNode(req.NodeType, req.Position, btDoc)
+		return content_modifier.BehaviourTreeCreateNode(req.NodeType, req.Position, req.InitialSettings, btDoc)
 	})
 
 	context.JSON(http.StatusOK, gin.H{

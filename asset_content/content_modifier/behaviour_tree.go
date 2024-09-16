@@ -32,7 +32,7 @@ type LogicBtNode struct {
 	Position XYPosition      `json:"position" binding:"required"`
 	NodeType string          `json:"type" binding:"required"`
 	Order    int             `json:"order" binding:"required"`
-	Data     json.RawMessage `json:"data" binding:"required"`
+	Settings json.RawMessage `json:"settings" binding:"omitempty"`
 }
 
 type LogicBtConnection struct {
@@ -140,7 +140,7 @@ func BehaviourTreeMoveNode(movementInfos []BehaviourTreeNodeMovementItem, doc *B
 	return common.Success, "", diffInfos
 }
 
-func BehaviourTreeCreateNode(nodeType string, toPosition XYPosition, doc *BehaviourTreeDocumentation) (common.ErrorCode, string, []BehaviourTreeNodeDiffInfo) {
+func BehaviourTreeCreateNode(nodeType string, toPosition XYPosition, initialSettings json.RawMessage, doc *BehaviourTreeDocumentation) (common.ErrorCode, string, []BehaviourTreeNodeDiffInfo) {
 	//"bt_root" : BTRootNode, // Not Supported Now
 	//"bt_selector" : BTSelectorNode,
 	//"bt_sequence" : BTSequenceNode,
@@ -148,7 +148,7 @@ func BehaviourTreeCreateNode(nodeType string, toPosition XYPosition, doc *Behavi
 	//"bt_task" : BTTaskNode
 	diffInfos := make([]BehaviourTreeNodeDiffInfo, 0, 1)
 	if nodeType == Node_Selector || nodeType == Node_Sequence || nodeType == Node_Task {
-		newNode := LogicBtNode{uuid.New().String(), "", toPosition, nodeType, -1, nil}
+		newNode := LogicBtNode{uuid.New().String(), "", toPosition, nodeType, -1, initialSettings}
 		doc.Nodes = append(doc.Nodes, newNode)
 		diffInfos = []BehaviourTreeNodeDiffInfo{{newNode.NodeId, nil, &newNode}}
 		return common.Success, "", diffInfos
