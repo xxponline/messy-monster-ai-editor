@@ -45,7 +45,14 @@ func ListSolutionsAPI(context *gin.Context) {
 func CreateSolutionAPI(context *gin.Context) {
 	//req
 	var req CreateSolutionReq
-	context.BindJSON(&req)
+	err := context.BindJSON(&req)
+	if err != nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.RequestBindError,
+			"errMessage": err.Error(),
+		})
+		return
+	}
 
 	//res
 	var errCode common.ErrorCode
@@ -70,7 +77,14 @@ func CreateSolutionAPI(context *gin.Context) {
 
 func SubmitSolutionMetaAPI(context *gin.Context) {
 	var req SubmitSolutionMetaReq
-	context.BindJSON(&req)
+	err := context.BindJSON(&req)
+	if err != nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.RequestBindError,
+			"errMessage": err.Error(),
+		})
+		return
+	}
 
 	errCode, errMsg, solutionDetailInfo := doSubmitSolutionMeta(req)
 
@@ -102,7 +116,14 @@ func doSubmitSolutionMeta(req SubmitSolutionMetaReq) (errCode common.ErrorCode, 
 
 func GetSolutionDetailAPI(context *gin.Context) {
 	var req GetSolutionDetailReq
-	context.BindJSON(&req)
+	err := context.BindJSON(&req)
+	if err != nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.RequestBindError,
+			"errMessage": err.Error(),
+		})
+		return
+	}
 
 	var errCode common.ErrorCode
 	var errMsg string

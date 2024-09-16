@@ -24,7 +24,14 @@ type ReadAssetReq struct {
 
 func CreateAssetAPI(context *gin.Context) {
 	var req CreateAssetReq
-	context.BindJSON(&req)
+	err := context.BindJSON(&req)
+	if err != nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.RequestBindError,
+			"errMessage": err.Error(),
+		})
+		return
+	}
 
 	var errCode common.ErrorCode
 	var errMsg string
@@ -71,7 +78,14 @@ func CreateAssetAPI(context *gin.Context) {
 
 func ListAssetsAPI(context *gin.Context) {
 	var req ListAssetsReq
-	context.BindJSON(&req)
+	err := context.BindJSON(&req)
+	if err != nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.RequestBindError,
+			"errMessage": err.Error(),
+		})
+		return
+	}
 
 	var assetItems []common.AssetSummaryInfoItem
 
@@ -90,7 +104,14 @@ func ListAssetsAPI(context *gin.Context) {
 
 func ReadAssetAPI(context *gin.Context) {
 	var req ReadAssetReq
-	context.BindJSON(&req)
+	err := context.BindJSON(&req)
+	if err != nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.RequestBindError,
+			"errMessage": err.Error(),
+		})
+		return
+	}
 
 	var assetDetail *common.AssetDetailInfo
 

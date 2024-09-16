@@ -9,8 +9,9 @@ const (
 
 	//Server or Database Error
 
-	ServerError   ErrorCode = 10000
-	DataBaseError ErrorCode = 10001
+	ServerError      ErrorCode = 10000
+	DataBaseError    ErrorCode = 10001
+	RequestBindError ErrorCode = 10010
 
 	//Asset Organization Error
 

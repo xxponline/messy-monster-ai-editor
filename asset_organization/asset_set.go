@@ -18,7 +18,14 @@ type CreateAssetSetReq struct {
 
 func ListAssetSetsAPI(context *gin.Context) {
 	var req ListAssetSetReq
-	context.BindJSON(&req)
+	err := context.BindJSON(&req)
+	if err != nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.RequestBindError,
+			"errMessage": err.Error(),
+		})
+		return
+	}
 
 	var assetSetInfos []common.AssetSetInfoItem
 
@@ -37,7 +44,14 @@ func ListAssetSetsAPI(context *gin.Context) {
 
 func CreateAssetSetAPI(context *gin.Context) {
 	var req CreateAssetSetReq
-	context.BindJSON(&req)
+	err := context.BindJSON(&req)
+	if err != nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.RequestBindError,
+			"errMessage": err.Error(),
+		})
+		return
+	}
 
 	var assetSetInfos []common.AssetSetInfoItem
 

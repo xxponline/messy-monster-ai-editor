@@ -69,7 +69,14 @@ type BehaviourTreeNodeModification struct {
 
 func CreateBehaviourTreeNodeAPI(context *gin.Context) {
 	var req CreateBehaviourTreeNodeReq
-	context.BindJSON(&req)
+	err := context.BindJSON(&req)
+	if err != nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.RequestBindError,
+			"errMessage": err.Error(),
+		})
+		return
+	}
 
 	errCode, errMsg, modificationInfo := passBehaviourTreeDocumentModification(&req, func(req *CreateBehaviourTreeNodeReq, btDoc *content_modifier.BehaviourTreeDocumentation) (common.ErrorCode, string, []content_modifier.BehaviourTreeNodeDiffInfo) {
 		return content_modifier.BehaviourTreeCreateNode(req.NodeType, req.Position, req.InitialSettings, btDoc)
@@ -84,7 +91,14 @@ func CreateBehaviourTreeNodeAPI(context *gin.Context) {
 
 func MoveBehaviourTreeNodeAPI(context *gin.Context) {
 	var req MoveBehaviourTreeNodeReq
-	context.BindJSON(&req)
+	err := context.BindJSON(&req)
+	if err != nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.RequestBindError,
+			"errMessage": err.Error(),
+		})
+		return
+	}
 
 	errCode, errMsg, modificationInfo := passBehaviourTreeDocumentModification(&req, func(req *MoveBehaviourTreeNodeReq, btDoc *content_modifier.BehaviourTreeDocumentation) (common.ErrorCode, string, []content_modifier.BehaviourTreeNodeDiffInfo) {
 		return content_modifier.BehaviourTreeMoveNode(req.MovementItems, btDoc)
@@ -99,7 +113,14 @@ func MoveBehaviourTreeNodeAPI(context *gin.Context) {
 
 func ConnectBehaviourTreeNodeAPI(context *gin.Context) {
 	var req ConnectBehaviourTreeNodeReq
-	context.BindJSON(&req)
+	err := context.BindJSON(&req)
+	if err != nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.RequestBindError,
+			"errMessage": err.Error(),
+		})
+		return
+	}
 
 	errCode, errMsg, modificationInfo := passBehaviourTreeDocumentModification(&req, func(req *ConnectBehaviourTreeNodeReq, btDoc *content_modifier.BehaviourTreeDocumentation) (common.ErrorCode, string, []content_modifier.BehaviourTreeNodeDiffInfo) {
 		return content_modifier.BehaviourTreeConnectNode(req.ParentNodeId, req.ChildNodeId, btDoc)
@@ -114,7 +135,14 @@ func ConnectBehaviourTreeNodeAPI(context *gin.Context) {
 
 func DisconnectBehaviourTreeNodeAPI(context *gin.Context) {
 	var req DisconnectBehaviourTreeNodeReq
-	context.BindJSON(&req)
+	err := context.BindJSON(&req)
+	if err != nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.RequestBindError,
+			"errMessage": err.Error(),
+		})
+		return
+	}
 
 	errCode, errMsg, modificationInfo := passBehaviourTreeDocumentModification(&req, func(req *DisconnectBehaviourTreeNodeReq, btDoc *content_modifier.BehaviourTreeDocumentation) (common.ErrorCode, string, []content_modifier.BehaviourTreeNodeDiffInfo) {
 		return content_modifier.BehaviourTreeDisconnectNode(req.ChildNodeIds, btDoc)
@@ -134,7 +162,14 @@ func ModifyBehaviourTreeNode(context *gin.Context) {
 
 func RemoveBehaviourTreeNodeAPI(context *gin.Context) {
 	var req RemoveBehaviourTreeNodeReq
-	context.BindJSON(&req)
+	err := context.BindJSON(&req)
+	if err != nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.RequestBindError,
+			"errMessage": err.Error(),
+		})
+		return
+	}
 
 	errCode, errMsg, modificationInfo := passBehaviourTreeDocumentModification(&req, func(req *RemoveBehaviourTreeNodeReq, btDoc *content_modifier.BehaviourTreeDocumentation) (common.ErrorCode, string, []content_modifier.BehaviourTreeNodeDiffInfo) {
 		return content_modifier.BehaviourTreeRemoveNode(req.NodeIds, btDoc)
