@@ -8,4 +8,7 @@ func InitializeAssetManagement(router *gin.RouterGroup) {
 	router.POST("MoveBehaviourTreeNode", MoveBehaviourTreeNodeAPI)
 	router.POST("ConnectBehaviourTreeNode", ConnectBehaviourTreeNodeAPI)
 	router.POST("DisconnectBehaviourTreeNode", DisconnectBehaviourTreeNodeAPI)
+
+	router.POST("GetDetailInfoAboutBehaviourTreeNode", GetDetailInfoAboutBehaviourTreeNodeAPI)
+	router.POST("UpdateBehaviourTreeNodeSettings", UpdateBehaviourTreeNodeSettingsAPI)
 }

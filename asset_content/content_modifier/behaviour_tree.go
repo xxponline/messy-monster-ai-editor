@@ -309,6 +309,20 @@ func BehaviourTreeDisconnectNodeByParentId(parentId string, doc *BehaviourTreeDo
 	return common.Success, "", diffInfos
 }
 
+func BehaviourTreeUpdateNodeSettings(nodeId string, settings json.RawMessage, doc *BehaviourTreeDocumentation) (common.ErrorCode, string, []BehaviourTreeNodeDiffInfo) {
+	for Idx := range doc.Nodes {
+		if doc.Nodes[Idx].NodeId == nodeId {
+			// Get It
+			modifyingNode := &doc.Nodes[Idx]
+			preModifiedNode := *modifyingNode
+			modifyingNode.Settings = settings
+			postModifiedNode := *modifyingNode
+			return common.Success, "", []BehaviourTreeNodeDiffInfo{{ModifiedNodeId: nodeId, PreModifiedNode: &preModifiedNode, PostModifiedNode: &postModifiedNode}}
+		}
+	}
+	return common.BtUpdateSettingsInvalidNodeId, common.BtUpdateSettingsInvalidNodeId.GetMsgFormat(nodeId), nil
+}
+
 func reorderBehaviourTreeNodesByParentId(doc *BehaviourTreeDocumentation, parentId string) []BehaviourTreeNodeDiffInfo {
 	reorderingNodes := make([]*LogicBtNode, 0, 8)
 	for i, _ := range doc.Nodes {

@@ -442,7 +442,10 @@ func (dbDoc *SqliteAssetDocument) ReadAsset() (common.ErrorCode, string, *common
 
 		result := statement.QueryRow(dbDoc.assetId)
 		var content common.AssetDetailInfo
-		result.Scan(&content.AssetId, &content.AssetSetId, &content.AssetType, &content.AssetName, &content.AssetContent, &content.AssetVersion)
+		err = result.Scan(&content.AssetId, &content.AssetSetId, &content.AssetType, &content.AssetName, &content.AssetContent, &content.AssetVersion)
+		if err != nil {
+			return common.DataBaseError, err.Error(), nil
+		}
 
 		return common.Success, "", &content
 	}

@@ -41,6 +41,9 @@ const (
 	BtConnectInvalidRootForChild         ErrorCode = 31032
 	BtConnectInvalidTaskForParent        ErrorCode = 31033
 	BtInvalidDisconnectNodeWithoutParent ErrorCode = 31034
+
+	BtGetNodeInvalidNodeId        ErrorCode = 310040
+	BtUpdateSettingsInvalidNodeId ErrorCode = 310041
 )
 
 var errorMsg = map[ErrorCode]string{
@@ -66,6 +69,9 @@ var errorMsg = map[ErrorCode]string{
 	BtConnectInvalidRootForChild:         "Invalid Parent Id: %s Root Always Not Child",
 	BtConnectInvalidTaskForParent:        "Invalid Child Id: %s Task Always Not Parent",
 	BtInvalidDisconnectNodeWithoutParent: "Invalid Child Id: %s, Disconnect Node Without Parent",
+
+	BtGetNodeInvalidNodeId:        "Invalid Node Id :%s For Get BehaviourTree Node",
+	BtUpdateSettingsInvalidNodeId: "Invalid Node Id :%s For Update Node Settings",
 }
 
 func (errCode ErrorCode) GetMsg() string {

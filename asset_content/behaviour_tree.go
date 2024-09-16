@@ -58,7 +58,12 @@ type DisconnectBehaviourTreeNodeReq struct {
 type UpdateBehaviourTreeNodeSettingsReq struct {
 	BaseBehaviourTreeModificationReq
 	NodeId       string          `json:"nodeId" binding:"required"`
-	NodeSettings json.RawMessage `json:"data" binding:"required"`
+	NodeSettings json.RawMessage `json:"settings" binding:"required"`
+}
+
+type GetDetailInfoAboutBehaviourTreeNode struct {
+	AssetId string `json:"assetId" binding:"required"`
+	NodeId  string `json:"nodeId" binding:"required"`
 }
 
 type BehaviourTreeNodeModification struct {
@@ -156,8 +161,76 @@ func DisconnectBehaviourTreeNodeAPI(context *gin.Context) {
 
 }
 
-func ModifyBehaviourTreeNode(context *gin.Context) {
+func GetDetailInfoAboutBehaviourTreeNodeAPI(context *gin.Context) {
+	var req GetDetailInfoAboutBehaviourTreeNode
+	err := context.BindJSON(&req)
+	if err != nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.RequestBindError,
+			"errMessage": err.Error(),
+		})
+		return
+	}
 
+	errCode, errMsg, logicNode := DoGetBehaviourTreeNode(req.AssetId, req.NodeId)
+	context.JSON(http.StatusOK, gin.H{
+		"errCode":    errCode,
+		"errMessage": errMsg,
+		"nodeInfo":   logicNode,
+	})
+}
+
+func DoGetBehaviourTreeNode(assetId string, nodeId string) (common.ErrorCode, string, *content_modifier.LogicBtNode) {
+	//Db btDoc
+	errCode, errMsg, assetDoc := db.ServerDatabase.GetAssetDocument(assetId, false)
+	if errCode != common.Success {
+		return errCode, errMsg, nil
+	}
+	defer assetDoc.Release()
+
+	//detail
+	errCode, errMsg, assetDetail := assetDoc.ReadAsset()
+	if errCode != common.Success {
+		return errCode, errMsg, nil
+	}
+
+	//Deserialization
+	var btDoc content_modifier.BehaviourTreeDocumentation
+	err := json.Unmarshal([]byte(assetDetail.AssetContent), &btDoc)
+	if err != nil {
+		return common.DeserializationError, common.DeserializationError.GetMsg(), nil
+	}
+
+	for Idx := range btDoc.Nodes {
+		if btDoc.Nodes[Idx].NodeId == nodeId {
+			// Get It
+			gotNode := btDoc.Nodes[Idx]
+			return common.Success, "", &gotNode
+		}
+	}
+	return common.BtGetNodeInvalidNodeId, common.BtGetNodeInvalidNodeId.GetMsgFormat(nodeId), nil
+}
+
+func UpdateBehaviourTreeNodeSettingsAPI(context *gin.Context) {
+	var req UpdateBehaviourTreeNodeSettingsReq
+	err := context.BindJSON(&req)
+	if err != nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.RequestBindError,
+			"errMessage": err.Error(),
+		})
+		return
+	}
+
+	errCode, errMsg, modificationInfo := passBehaviourTreeDocumentModification(&req, func(req *UpdateBehaviourTreeNodeSettingsReq, btDoc *content_modifier.BehaviourTreeDocumentation) (common.ErrorCode, string, []content_modifier.BehaviourTreeNodeDiffInfo) {
+		return content_modifier.BehaviourTreeUpdateNodeSettings(req.NodeId, req.NodeSettings, btDoc)
+	})
+
+	context.JSON(http.StatusOK, gin.H{
+		"errCode":          errCode,
+		"errMessage":       errMsg,
+		"modificationInfo": modificationInfo,
+	})
 }
 
 func RemoveBehaviourTreeNodeAPI(context *gin.Context) {
