@@ -13,5 +13,6 @@ func InitializeAssetManagement(router *gin.RouterGroup) {
 
 	router.POST("CreateAsset", CreateAssetAPI)
 	router.POST("ListAssets", ListAssetsAPI)
+	router.POST("ListAssetsByMultipleAssetSets", ListAssetsByMultipleAssetSetsAPI)
 	router.POST("ReadAsset", ReadAssetAPI)
 }

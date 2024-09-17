@@ -18,6 +18,10 @@ type ListAssetsReq struct {
 	AssetSetId string `json:"assetSetId" binding:"required"`
 }
 
+type ListAssetsByMultipleSetsReq struct {
+	AssetSetIds []string `json:"assetSetIds" binding:"required"`
+}
+
 type ReadAssetReq struct {
 	AssetId string `json:"assetId" binding:"required"`
 }
@@ -65,7 +69,7 @@ func CreateAssetAPI(context *gin.Context) {
 		defer assetMgr.Release()
 		errCode, errMsg = assetMgr.CreateAsset(req.AssetSetId, req.AssetType, req.AssetName, initialContent)
 		if errCode == common.Success {
-			errCode, errMsg, assetItems = assetMgr.ListAssets(req.AssetSetId)
+			errCode, errMsg, assetItems = assetMgr.ListAssets([]string{req.AssetSetId})
 		}
 	}
 
@@ -92,7 +96,33 @@ func ListAssetsAPI(context *gin.Context) {
 	errCode, errMsg, assetMgr := db.ServerDatabase.GetAssetManager(false)
 	if errCode == common.Success {
 		defer assetMgr.Release()
-		errCode, errMsg, assetItems = assetMgr.ListAssets(req.AssetSetId)
+		errCode, errMsg, assetItems = assetMgr.ListAssets([]string{req.AssetSetId})
+	}
+
+	context.JSON(http.StatusOK, gin.H{
+		"errCode":           errCode,
+		"errMessage":        errMsg,
+		"assetSummaryInfos": assetItems,
+	})
+}
+
+func ListAssetsByMultipleAssetSetsAPI(context *gin.Context) {
+	var req ListAssetsByMultipleSetsReq
+	err := context.BindJSON(&req)
+	if err != nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.RequestBindError,
+			"errMessage": err.Error(),
+		})
+		return
+	}
+
+	var assetItems []common.AssetSummaryInfoItem
+
+	errCode, errMsg, assetMgr := db.ServerDatabase.GetAssetManager(false)
+	if errCode == common.Success {
+		defer assetMgr.Release()
+		errCode, errMsg, assetItems = assetMgr.ListAssets(req.AssetSetIds)
 	}
 
 	context.JSON(http.StatusOK, gin.H{

@@ -28,7 +28,7 @@ type IAssetSetManager interface {
 }
 
 type IAssetManager interface {
-	ListAssets(assetSetId string) (common.ErrorCode, string, []common.AssetSummaryInfoItem)
+	ListAssets(assetSetIds []string) (common.ErrorCode, string, []common.AssetSummaryInfoItem)
 	CreateAsset(assetSetId string, assetType string, assetName string, assetInitContent string) (common.ErrorCode, string)
 	Release()
 }

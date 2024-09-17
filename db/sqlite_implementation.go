@@ -3,8 +3,10 @@ package db
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"github.com/google/uuid"
 	"messy-monster-ai-editor/common"
+	"strings"
 	"sync"
 )
 
@@ -313,15 +315,21 @@ type SqliteAssetManager struct {
 	locker      *sync.RWMutex
 }
 
-func (assetMgr *SqliteAssetManager) ListAssets(assetSetId string) (common.ErrorCode, string, []common.AssetSummaryInfoItem) {
-	querySQL := `SELECT id, assetSetId, assetType, assetName, assetVersion FROM ai_asset_documentations WHERE assetSetId = ?`
+func (assetMgr *SqliteAssetManager) ListAssets(assetSetIds []string) (common.ErrorCode, string, []common.AssetSummaryInfoItem) {
+	placeholders := make([]string, len(assetSetIds))
+	args := make([]interface{}, len(assetSetIds))
+	for i := range assetSetIds {
+		placeholders[i] = `assetSetId = ?`
+		args[i] = assetSetIds[i]
+	}
+	querySQL := fmt.Sprintf(`SELECT id, assetSetId, assetType, assetName, assetVersion FROM ai_asset_documentations WHERE %s`, strings.Join(placeholders, " OR "))
 	statement, err := assetMgr.sqliteDb.Prepare(querySQL) // Prepare statement.
 	if err != nil {
 		return common.DataBaseError, err.Error(), nil
 	}
 	defer statement.Close()
 
-	rows, err := statement.Query(assetSetId)
+	rows, err := statement.Query(args...)
 	if err != nil {
 		return common.DataBaseError, err.Error(), nil
 	}
