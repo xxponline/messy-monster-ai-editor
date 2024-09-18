@@ -24,6 +24,9 @@ const (
 	DuplicatedAssetName    ErrorCode = 20021
 	InvalidAssetType       ErrorCode = 20022
 
+	ArchiveAssetsInvalidAssetType  ErrorCode = 20031
+	ArchiveAssetsUnexpectAssetType ErrorCode = 20032
+
 	//Common Content
 
 	InvalidAssetVersion  ErrorCode = 30001
@@ -55,6 +58,9 @@ var errorMsg = map[ErrorCode]string{
 	InvalidAssetSet:        "Invalid AssetSet : AssetSet Id %s ",
 	DuplicatedAssetName:    "Duplicated Asset Name: %s",
 	InvalidAssetType:       "Invalid Asset Type: %s",
+
+	ArchiveAssetsInvalidAssetType:  "Invalid Asset Type %s When Archive Asset Set",
+	ArchiveAssetsUnexpectAssetType: "Unexpect Asset Type %s When Archive Asset Set The Expectation Is %s",
 
 	InvalidAssetVersion:  "Invalid Asset Version For Modification Exist Version: %s Request Version: %s",
 	DeserializationError: "Deserialization Error",

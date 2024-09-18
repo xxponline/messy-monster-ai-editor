@@ -2,6 +2,7 @@ package asset_content
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"messy-monster-ai-editor/asset_content/content_modifier"
 	"messy-monster-ai-editor/common"
@@ -70,6 +71,16 @@ type BehaviourTreeNodeModification struct {
 	DiffNodesInfos []content_modifier.BehaviourTreeNodeDiffInfo `json:"diffNodesInfos" binding:"required"`
 	PrevVersion    string                                       `json:"prevVersion" binding:"required"`
 	NewVersion     string                                       `json:"newVersion" binding:"required"`
+}
+
+type ArchivedBehaviourTree struct {
+	AssetName    string `json:"assetName" binding:"required"`
+	AssetId      string `json:"assetId" binding:"required"`
+	AssetVersion string `json:"assetVersion" binding:"required"`
+
+	BehaviourTreeNodes       string `json:"behaviourTreeNodes" binding:"required"`
+	BehaviourTreeDescriptors string `json:"behaviourTreeDescriptors" binding:"required"`
+	BehaviourTreeServices    string `json:"behaviourTreeServices" binding:"required"`
 }
 
 func CreateBehaviourTreeNodeAPI(context *gin.Context) {
@@ -309,4 +320,68 @@ func passBehaviourTreeDocumentModification[T AssetModifier](req T, behaviourTree
 		newVersion}
 
 	return common.Success, "", &modificationInfo
+}
+
+func GetArchivedBehaviourTreeAsset(assetId string) (common.ErrorCode, string, *ArchivedBehaviourTree) {
+	errCode, errMsg, doc := db.ServerDatabase.GetAssetDocument(assetId, false)
+	if errCode != common.Success {
+		return errCode, errMsg, nil
+	}
+	defer doc.Release()
+
+	errCode, errMsg, assetDetail := doc.ReadAsset()
+
+	if assetDetail.AssetType != "BehaviourTree" {
+		return common.ArchiveAssetsUnexpectAssetType, common.ArchiveAssetsUnexpectAssetType.GetMsgFormat(assetDetail.AssetType, "BehaviourTree"), nil
+	}
+
+	var btDoc content_modifier.BehaviourTreeDocumentation
+	//Deserialize
+	err := json.Unmarshal([]byte(assetDetail.AssetContent), &btDoc)
+	if err != nil {
+		return common.DeserializationError, err.Error(), nil
+	}
+
+	var archivedDoc ArchivedBehaviourTree
+	archivedDoc.AssetName = assetDetail.AssetName
+	archivedDoc.AssetId = assetDetail.AssetId
+	archivedDoc.AssetVersion = assetDetail.AssetVersion
+
+	archivedNodes := make([]map[string]interface{}, 0, len(btDoc.Nodes))
+	for _, node := range btDoc.Nodes {
+		archivedNode := make(map[string]interface{})
+		//fmt.Printf("%v %d \n", node.Settings, len(node.Settings))
+		archivedNode["id"] = node.NodeId
+		archivedNode["type"] = node.NodeType
+		archivedNode["order"] = node.Order
+		archivedNode["parentId"] = node.ParentId
+		//fmt.Printf("before desirialize %v \n", archivedNode)
+		if string(node.Settings) != "null" {
+			fmt.Printf("umarshal ... %s \n", string(node.Settings))
+			err := json.Unmarshal(node.Settings, &archivedNode)
+			if err != nil {
+				return common.DeserializationError, err.Error(), nil
+			}
+		}
+		//fmt.Printf("after desirialize %v \n", archivedNode)
+
+		////
+		//fmt.Printf("%v \n", archivedNode)
+
+		archivedNodes = append(archivedNodes, archivedNode)
+	}
+
+	{
+		serializationNodes, err := json.Marshal(&archivedNodes)
+		if err != nil {
+			return common.SerializationError, err.Error(), nil
+		}
+
+		archivedDoc.BehaviourTreeNodes = string(serializationNodes)
+	}
+
+	archivedDoc.BehaviourTreeDescriptors = "[]"
+	archivedDoc.BehaviourTreeServices = "[]"
+	return common.Success, "", &archivedDoc
+
 }

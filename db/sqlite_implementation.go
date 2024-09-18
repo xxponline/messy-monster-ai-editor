@@ -218,6 +218,38 @@ type SqliteAssetSetManager struct {
 	locker      *sync.RWMutex
 }
 
+func (assetSetMgr *SqliteAssetSetManager) ListAssetSetsBySetIds(assetSetIds []string) (common.ErrorCode, string, []common.AssetSetInfoItem) {
+	placeholders := make([]string, len(assetSetIds))
+	args := make([]interface{}, len(assetSetIds))
+	for i := range assetSetIds {
+		placeholders[i] = `id = ?`
+		args[i] = assetSetIds[i]
+	}
+
+	querySQL := fmt.Sprintf(`SELECT id, solutionId, assetSetName FROM ai_asset_sets WHERE %s`, strings.Join(placeholders, " OR "))
+	{
+		statement, err := assetSetMgr.sqliteDb.Prepare(querySQL) // Prepare statement.
+		if err != nil {
+			return common.DataBaseError, err.Error(), nil
+		}
+		defer statement.Close()
+
+		rows, err := statement.Query(args...)
+		if err != nil {
+			return common.DataBaseError, err.Error(), nil
+		}
+		defer rows.Close()
+
+		var resultAssetSets []common.AssetSetInfoItem
+		for rows.Next() {
+			var assetSetInfo common.AssetSetInfoItem
+			rows.Scan(&assetSetInfo.AssetSetId, &assetSetInfo.SolutionId, &assetSetInfo.AssetSetName)
+			resultAssetSets = append(resultAssetSets, assetSetInfo)
+		}
+		return 0, "", resultAssetSets
+	}
+}
+
 func (assetSetMgr *SqliteAssetSetManager) ListAssetSets(solutionId string) (common.ErrorCode, string, []common.AssetSetInfoItem) {
 	querySQL := `SELECT id, solutionId, assetSetName FROM ai_asset_sets WHERE solutionId = ?`
 	{

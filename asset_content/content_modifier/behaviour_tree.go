@@ -6,7 +6,6 @@ import (
 	"golang.org/x/exp/slices"
 	"maze.io/x/math32"
 	"messy-monster-ai-editor/common"
-	"time"
 )
 
 // "bt_root" : BTRootNode, // Not Supported Now
@@ -35,12 +34,6 @@ type LogicBtNode struct {
 	Settings json.RawMessage `json:"settings" binding:"omitempty"`
 }
 
-type LogicBtConnection struct {
-	ConnectionId string `json:"id" binding:"required"`
-	Source       string `json:"source" binding:"required"`
-	Target       string `json:"target" binding:"required"`
-}
-
 type LogicBtDescriptor struct {
 	DescriptorId string `json:"id" binding:"required"`
 	AttachTo     string `json:"attachTo" binding:"required"`
@@ -56,7 +49,6 @@ type LogicBtService struct {
 type BehaviourTreeDocumentation struct {
 	ModifyTimeStamp int64
 	Nodes           []LogicBtNode
-	Connections     []LogicBtConnection
 	Descriptors     []LogicBtDescriptor
 	Services        []LogicBtService
 }
@@ -91,11 +83,9 @@ func mergeOrAppendNodeDiffInfo(nodeDiffInfos []BehaviourTreeNodeDiffInfo, newDif
 func BehaviourTreeCreateEmptyContent() (errCode common.ErrorCode, errMsg string, content string) {
 	initializedNodes := []LogicBtNode{{uuid.New().String(), "", XYPosition{100, 100}, Node_Root, 0, nil}}
 	BehaviourTreeDocumentation := BehaviourTreeDocumentation{
-		ModifyTimeStamp: time.Now().UTC().Unix(),
-		Nodes:           initializedNodes,
-		Connections:     []LogicBtConnection{},
-		Descriptors:     []LogicBtDescriptor{},
-		Services:        []LogicBtService{},
+		Nodes:       initializedNodes,
+		Descriptors: []LogicBtDescriptor{},
+		Services:    []LogicBtService{},
 	}
 
 	b, err := json.Marshal(BehaviourTreeDocumentation)
