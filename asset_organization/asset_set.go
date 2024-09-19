@@ -64,21 +64,26 @@ func CreateAssetSetAPI(context *gin.Context) {
 		return
 	}
 
-	var assetSetInfos []common.AssetSetInfoItem
-
 	errCode, errMsg, assetSetMgr := db.ServerDatabase.GetAssetSetManager(true)
+	if errCode != common.Success {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    errCode,
+			"errMessage": errMsg,
+		})
+		return
+	}
+	defer assetSetMgr.Release()
+	var assetSetInfos []common.AssetSetInfoItem
+	errCode, errMsg, newAssetSetId := assetSetMgr.CreateAssetSet(req.SolutionId, req.AssetSetName)
 	if errCode == common.Success {
-		defer assetSetMgr.Release()
-		errCode, errMsg = assetSetMgr.CreateAssetSet(req.SolutionId, req.AssetSetName)
-		if errCode == common.Success {
-			errCode, errMsg, assetSetInfos = assetSetMgr.ListAssetSets(req.SolutionId)
-		}
+		errCode, errMsg, assetSetInfos = assetSetMgr.ListAssetSets(req.SolutionId)
 	}
 
 	context.JSON(http.StatusOK, gin.H{
-		"errCode":    errCode,
-		"errMessage": errMsg,
-		"assetSets":  assetSetInfos,
+		"errCode":       errCode,
+		"errMessage":    errMsg,
+		"assetSets":     assetSetInfos,
+		"newAssetSetId": newAssetSetId,
 	})
 
 }

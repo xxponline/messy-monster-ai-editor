@@ -275,7 +275,7 @@ func (assetSetMgr *SqliteAssetSetManager) ListAssetSets(solutionId string) (comm
 	}
 }
 
-func (assetSetMgr *SqliteAssetSetManager) CreateAssetSet(solutionId string, assetSetName string) (common.ErrorCode, string) {
+func (assetSetMgr *SqliteAssetSetManager) CreateAssetSet(solutionId string, assetSetName string) (errCode common.ErrorCode, errMsg string, newAssetSetId string) {
 	if !assetSetMgr.isWriteable {
 		panic("SqliteAssetSetManager Need Writeable To CreateAssetSet")
 	}
@@ -285,7 +285,7 @@ func (assetSetMgr *SqliteAssetSetManager) CreateAssetSet(solutionId string, asse
 		CheckSQL := `SELECT count(*) FROM ai_solutions WHERE id=?`
 		statement, err := assetSetMgr.sqliteDb.Prepare(CheckSQL) // Prepare statement.
 		if err != nil {
-			return common.DataBaseError, err.Error()
+			return common.DataBaseError, err.Error(), ""
 		}
 		defer statement.Close()
 
@@ -293,7 +293,7 @@ func (assetSetMgr *SqliteAssetSetManager) CreateAssetSet(solutionId string, asse
 		var count int
 		result.Scan(&count)
 		if count == 0 {
-			return common.InvalidSolution, common.InvalidSolution.GetMsgFormat(solutionId)
+			return common.InvalidSolution, common.InvalidSolution.GetMsgFormat(solutionId), ""
 		}
 	}
 
@@ -302,7 +302,7 @@ func (assetSetMgr *SqliteAssetSetManager) CreateAssetSet(solutionId string, asse
 		CheckSQL := `SELECT count(*) FROM ai_asset_sets WHERE assetSetName = ?`
 		statement, err := assetSetMgr.sqliteDb.Prepare(CheckSQL) // Prepare statement.
 		if err != nil {
-			return common.DataBaseError, err.Error()
+			return common.DataBaseError, err.Error(), ""
 		}
 		defer statement.Close()
 
@@ -310,7 +310,7 @@ func (assetSetMgr *SqliteAssetSetManager) CreateAssetSet(solutionId string, asse
 		var count int
 		result.Scan(&count)
 		if count > 0 {
-			return common.DuplicatedAssetSetName, common.DuplicatedAssetSetName.GetMsgFormat(assetSetName)
+			return common.DuplicatedAssetSetName, common.DuplicatedAssetSetName.GetMsgFormat(assetSetName), ""
 		}
 	}
 
@@ -320,14 +320,15 @@ func (assetSetMgr *SqliteAssetSetManager) CreateAssetSet(solutionId string, asse
 		statement, err := assetSetMgr.sqliteDb.Prepare(CreateSQL) // Prepare statement.
 		// This is good to avoid SQL injections
 		if err != nil {
-			return common.DataBaseError, err.Error()
+			return common.DataBaseError, err.Error(), ""
 		}
 
-		_, err = statement.Exec(uuid.New().String(), solutionId, assetSetName)
+		newId := uuid.New().String()
+		_, err = statement.Exec(newId, solutionId, assetSetName)
 		if err != nil {
-			return common.DataBaseError, err.Error()
+			return common.DataBaseError, err.Error(), ""
 		}
-		return common.Success, ""
+		return common.Success, "", newId
 	}
 }
 

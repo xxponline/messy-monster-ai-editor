@@ -24,7 +24,7 @@ type ISolutionManager interface {
 type IAssetSetManager interface {
 	ListAssetSets(solutionId string) (common.ErrorCode, string, []common.AssetSetInfoItem)
 	ListAssetSetsBySetIds(assetSetIds []string) (common.ErrorCode, string, []common.AssetSetInfoItem)
-	CreateAssetSet(solutionId string, assetSetName string) (common.ErrorCode, string)
+	CreateAssetSet(solutionId string, assetSetName string) (errCode common.ErrorCode, errMsg string, newAssetSetId string)
 	Release()
 }
 
