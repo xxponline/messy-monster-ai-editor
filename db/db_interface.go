@@ -16,7 +16,7 @@ type IAiEditorDatabase interface {
 type ISolutionManager interface {
 	Release()
 	ListSolutions() (common.ErrorCode, string, []common.SolutionSummaryInfoItem)
-	CreateNewSolution(solutionName string) (common.ErrorCode, string)
+	CreateNewSolution(solutionName string) (errCode common.ErrorCode, errMsg string, newSolutionId string)
 	ReadSolutionDetail(solutionId string) (errCode common.ErrorCode, errMsg string, solutionInfo *common.SolutionDetailInfo)
 	SubmitSolutionMeta(solutionId string, solutionMeta json.RawMessage) (errCode common.ErrorCode, errMsg string, solutionInfo *common.SolutionDetailInfo)
 }

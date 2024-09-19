@@ -60,18 +60,31 @@ func CreateSolutionAPI(context *gin.Context) {
 	var solutionInfos []common.SolutionSummaryInfoItem
 
 	errCode, errMsg, solutionMgr := db.ServerDatabase.GetSolutionManager(true)
-	if errCode == common.Success {
-		defer solutionMgr.Release()
-		errCode, errMsg = solutionMgr.CreateNewSolution(req.SolutionName)
-		if errCode == common.Success {
-			errCode, errMsg, solutionInfos = solutionMgr.ListSolutions()
-		}
+	if errCode != common.Success {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    errCode,
+			"errMessage": errMsg,
+			"solutions":  solutionInfos,
+		})
+		return
 	}
+	defer solutionMgr.Release()
+	errCode, errMsg, newSolutionId := solutionMgr.CreateNewSolution(req.SolutionName)
+	if errCode != common.Success {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    errCode,
+			"errMessage": errMsg,
+			"solutions":  solutionInfos,
+		})
+		return
+	}
+	errCode, errMsg, solutionInfos = solutionMgr.ListSolutions()
 
 	context.JSON(http.StatusOK, gin.H{
-		"errCode":    errCode,
-		"errMessage": errMsg,
-		"solutions":  solutionInfos,
+		"errCode":       errCode,
+		"errMessage":    errMsg,
+		"solutions":     solutionInfos,
+		"newSolutionId": newSolutionId,
 	})
 }
 

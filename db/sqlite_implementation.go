@@ -171,7 +171,7 @@ func (solutionMgr *SqliteSolutionManager) ListSolutions() (common.ErrorCode, str
 	}
 }
 
-func (solutionMgr *SqliteSolutionManager) CreateNewSolution(solutionName string) (common.ErrorCode, string) {
+func (solutionMgr *SqliteSolutionManager) CreateNewSolution(solutionName string) (errCode common.ErrorCode, errMsg string, newSolutionId string) {
 	if !solutionMgr.isWriteable {
 		panic("SqliteSolutionManager Need Writeable To CreateNewSolution")
 	}
@@ -180,7 +180,7 @@ func (solutionMgr *SqliteSolutionManager) CreateNewSolution(solutionName string)
 	{
 		statement, err := solutionMgr.sqliteDb.Prepare(querySQL) // Prepare statement.
 		if err != nil {
-			return common.DataBaseError, err.Error()
+			return common.DataBaseError, err.Error(), ""
 		}
 		defer statement.Close()
 
@@ -189,25 +189,26 @@ func (solutionMgr *SqliteSolutionManager) CreateNewSolution(solutionName string)
 		result.Scan(&count)
 
 		if count > 0 {
-			return common.DuplicatedSolutionName, common.DuplicatedSolutionName.GetMsgFormat(solutionName)
+			return common.DuplicatedSolutionName, common.DuplicatedSolutionName.GetMsgFormat(solutionName), ""
 		}
 	}
 
-	insertStudentSQL := `INSERT INTO ai_solutions(id, solutionName, solutionMeta) VALUES (?,?,?)`
+	insertStudentSQL := `INSERT INTO ai_solutions(id, solutionName, solutionMeta, solutionVersion) VALUES (?,?,?,?)`
 	{
 		statement, err := solutionMgr.sqliteDb.Prepare(insertStudentSQL) // Prepare statement.
 		// This is good to avoid SQL injections
 		if err != nil {
-			return common.DataBaseError, err.Error()
+			return common.DataBaseError, err.Error(), ""
 		}
 		defer statement.Close()
 
-		_, err = statement.Exec(uuid.New().String(), solutionName, nil)
+		solutionId := uuid.New().String()
+		_, err = statement.Exec(solutionId, solutionName, json.RawMessage("{}"), uuid.New().String())
 		if err != nil {
-			return common.DataBaseError, err.Error()
+			return common.DataBaseError, err.Error(), ""
 		}
+		return common.Success, "", solutionId
 	}
-	return common.Success, ""
 }
 
 //AssetSetManager
