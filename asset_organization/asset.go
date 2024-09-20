@@ -65,18 +65,31 @@ func CreateAssetAPI(context *gin.Context) {
 	var assetMgr db.IAssetManager
 
 	errCode, errMsg, assetMgr = db.ServerDatabase.GetAssetManager(true)
-	if errCode == common.Success {
-		defer assetMgr.Release()
-		errCode, errMsg = assetMgr.CreateAsset(req.AssetSetId, req.AssetType, req.AssetName, initialContent)
-		if errCode == common.Success {
-			errCode, errMsg, assetItems = assetMgr.ListAssets([]string{req.AssetSetId})
-		}
+	if errCode != common.Success {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    errCode,
+			"errMessage": errMsg,
+		})
+		return
 	}
+	defer assetMgr.Release()
+
+	errCode, errMsg, createAssetId := assetMgr.CreateAsset(req.AssetSetId, req.AssetType, req.AssetName, initialContent)
+	if errCode != common.Success {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    errCode,
+			"errMessage": errMsg,
+		})
+		return
+	}
+
+	errCode, errMsg, assetItems = assetMgr.ListAssets([]string{req.AssetSetId})
 
 	context.JSON(http.StatusOK, gin.H{
 		"errCode":           errCode,
 		"errMessage":        errMsg,
 		"assetSummaryInfos": assetItems,
+		"newAssetId":        createAssetId,
 	})
 }
 

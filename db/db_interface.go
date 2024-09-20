@@ -30,7 +30,7 @@ type IAssetSetManager interface {
 
 type IAssetManager interface {
 	ListAssets(assetSetIds []string) (common.ErrorCode, string, []common.AssetSummaryInfoItem)
-	CreateAsset(assetSetId string, assetType string, assetName string, assetInitContent string) (common.ErrorCode, string)
+	CreateAsset(assetSetId string, assetType string, assetName string, assetInitContent string) (errCode common.ErrorCode, errMsg string, createdAssetId string)
 	Release()
 }
 

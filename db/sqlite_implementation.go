@@ -378,7 +378,7 @@ func (assetMgr *SqliteAssetManager) ListAssets(assetSetIds []string) (common.Err
 	return common.Success, "", resultAssets
 }
 
-func (assetMgr *SqliteAssetManager) CreateAsset(assetSetId string, assetType string, assetName string, assetInitContent string) (common.ErrorCode, string) {
+func (assetMgr *SqliteAssetManager) CreateAsset(assetSetId string, assetType string, assetName string, assetInitContent string) (errCode common.ErrorCode, errMsg string, createdAssetId string) {
 	if !assetMgr.isWriteable {
 		panic("SqliteAssetManager Need Writeable To CreateAsset")
 	}
@@ -387,7 +387,7 @@ func (assetMgr *SqliteAssetManager) CreateAsset(assetSetId string, assetType str
 		querySQL := `SELECT count(*) FROM ai_asset_sets WHERE id = ?;`
 		statement, err := assetMgr.sqliteDb.Prepare(querySQL) // Prepare statement.
 		if err != nil {
-			return common.DataBaseError, err.Error()
+			return common.DataBaseError, err.Error(), ""
 		}
 		defer statement.Close()
 
@@ -396,7 +396,7 @@ func (assetMgr *SqliteAssetManager) CreateAsset(assetSetId string, assetType str
 		result.Scan(&count)
 
 		if count != 1 {
-			return common.InvalidAssetSet, common.InvalidAssetSet.GetMsgFormat(assetSetId)
+			return common.InvalidAssetSet, common.InvalidAssetSet.GetMsgFormat(assetSetId), ""
 		}
 	}
 
@@ -405,7 +405,7 @@ func (assetMgr *SqliteAssetManager) CreateAsset(assetSetId string, assetType str
 		querySQL := `SELECT count(*) FROM ai_asset_documentations WHERE assetName = ?;`
 		statement, err := assetMgr.sqliteDb.Prepare(querySQL) // Prepare statement.
 		if err != nil {
-			return common.DataBaseError, err.Error()
+			return common.DataBaseError, err.Error(), ""
 		}
 		defer statement.Close()
 
@@ -414,7 +414,7 @@ func (assetMgr *SqliteAssetManager) CreateAsset(assetSetId string, assetType str
 		result.Scan(&count)
 
 		if count > 0 {
-			return common.DuplicatedAssetName, common.DuplicatedAssetName.GetMsgFormat(assetName)
+			return common.DuplicatedAssetName, common.DuplicatedAssetName.GetMsgFormat(assetName), ""
 		}
 	}
 
@@ -422,15 +422,16 @@ func (assetMgr *SqliteAssetManager) CreateAsset(assetSetId string, assetType str
 		createSQL := `INSERT INTO ai_asset_documentations(id, assetSetId, assetType, assetName, assetContent, assetVersion) VALUES (?,?,?,?,?,?)`
 		statement, err := assetMgr.sqliteDb.Prepare(createSQL) // Prepare statement.
 		if err != nil {
-			return common.DataBaseError, err.Error()
+			return common.DataBaseError, err.Error(), ""
 		}
 		defer statement.Close()
 
-		_, err = statement.Exec(uuid.New().String(), assetSetId, assetType, assetName, assetInitContent, uuid.New().String())
+		newId := uuid.New().String()
+		_, err = statement.Exec(newId, assetSetId, assetType, assetName, assetInitContent, uuid.New().String())
 		if err != nil {
-			return common.DataBaseError, err.Error()
+			return common.DataBaseError, err.Error(), ""
 		}
-		return common.Success, ""
+		return common.Success, "", newId
 	}
 }
 
