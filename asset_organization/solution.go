@@ -36,9 +36,9 @@ func ListSolutionsAPI(context *gin.Context) {
 	}
 
 	context.JSON(http.StatusOK, gin.H{
-		"errCode":   errCode,
-		"errMsg":    errMsg,
-		"solutions": solutionInfos,
+		"errCode":    errCode,
+		"errMessage": errMsg,
+		"solutions":  solutionInfos,
 	})
 }
 
@@ -48,8 +48,8 @@ func CreateSolutionAPI(context *gin.Context) {
 	err := context.BindJSON(&req)
 	if err != nil {
 		context.JSON(http.StatusOK, gin.H{
-			"errCode": common.RequestBindError,
-			"errMsg":  err.Error(),
+			"errCode":    common.RequestBindError,
+			"errMessage": err.Error(),
 		})
 		return
 	}
@@ -62,9 +62,9 @@ func CreateSolutionAPI(context *gin.Context) {
 	errCode, errMsg, solutionMgr := db.ServerDatabase.GetSolutionManager(true)
 	if errCode != common.Success {
 		context.JSON(http.StatusOK, gin.H{
-			"errCode":   errCode,
-			"errMsg":    errMsg,
-			"solutions": solutionInfos,
+			"errCode":    errCode,
+			"errMessage": errMsg,
+			"solutions":  solutionInfos,
 		})
 		return
 	}
@@ -72,9 +72,9 @@ func CreateSolutionAPI(context *gin.Context) {
 	errCode, errMsg, newSolutionId := solutionMgr.CreateNewSolution(req.SolutionName)
 	if errCode != common.Success {
 		context.JSON(http.StatusOK, gin.H{
-			"errCode":   errCode,
-			"errMsg":    errMsg,
-			"solutions": solutionInfos,
+			"errCode":    errCode,
+			"errMessage": errMsg,
+			"solutions":  solutionInfos,
 		})
 		return
 	}
@@ -82,7 +82,7 @@ func CreateSolutionAPI(context *gin.Context) {
 
 	context.JSON(http.StatusOK, gin.H{
 		"errCode":       errCode,
-		"errMsg":        errMsg,
+		"errMessage":    errMsg,
 		"solutions":     solutionInfos,
 		"newSolutionId": newSolutionId,
 	})
@@ -93,8 +93,8 @@ func SubmitSolutionMetaAPI(context *gin.Context) {
 	err := context.BindJSON(&req)
 	if err != nil {
 		context.JSON(http.StatusOK, gin.H{
-			"errCode": common.RequestBindError,
-			"errMsg":  err.Error(),
+			"errCode":    common.RequestBindError,
+			"errMessage": err.Error(),
 		})
 		return
 	}
@@ -103,7 +103,7 @@ func SubmitSolutionMetaAPI(context *gin.Context) {
 
 	context.JSON(http.StatusOK, gin.H{
 		"errCode":        errCode,
-		"errMsg":         errMsg,
+		"errMessage":     errMsg,
 		"solutionDetail": solutionDetailInfo,
 	})
 }
@@ -132,8 +132,8 @@ func GetSolutionDetailAPI(context *gin.Context) {
 	err := context.BindJSON(&req)
 	if err != nil {
 		context.JSON(http.StatusOK, gin.H{
-			"errCode": common.RequestBindError,
-			"errMsg":  err.Error(),
+			"errCode":    common.RequestBindError,
+			"errMessage": err.Error(),
 		})
 		return
 	}
@@ -150,7 +150,7 @@ func GetSolutionDetailAPI(context *gin.Context) {
 
 	context.JSON(http.StatusOK, gin.H{
 		"errCode":        errCode,
-		"errMsg":         errMsg,
+		"errMessage":     errMsg,
 		"solutionDetail": solutionInfo,
 	})
 }
