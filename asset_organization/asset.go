@@ -2,9 +2,9 @@ package asset_organization
 
 import (
 	"github.com/gin-gonic/gin"
-	"messy-monster-ai-editor/asset_content/content_modifier"
-	"messy-monster-ai-editor/common"
-	"messy-monster-ai-editor/db"
+	"github.com/xxponline/messy-monster-ai-editor/asset_content/content_modifier"
+	"github.com/xxponline/messy-monster-ai-editor/common"
+	"github.com/xxponline/messy-monster-ai-editor/db"
 	"net/http"
 )
 

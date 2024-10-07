@@ -1,4 +1,4 @@
-module messy-monster-ai-editor
+module github.com/xxponline/messy-monster-ai-editor
 
 go 1.22.2
 

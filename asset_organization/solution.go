@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"github.com/gin-gonic/gin"
 	_ "github.com/mattn/go-sqlite3"
-	"messy-monster-ai-editor/common"
-	"messy-monster-ai-editor/db"
+	"github.com/xxponline/messy-monster-ai-editor/common"
+	"github.com/xxponline/messy-monster-ai-editor/db"
 	"net/http"
 )
 

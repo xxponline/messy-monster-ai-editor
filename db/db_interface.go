@@ -2,7 +2,7 @@ package db
 
 import (
 	"encoding/json"
-	"messy-monster-ai-editor/common"
+	"github.com/xxponline/messy-monster-ai-editor/common"
 )
 
 type IAiEditorDatabase interface {

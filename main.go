@@ -2,9 +2,9 @@ package main
 
 import (
 	"github.com/gin-gonic/gin"
-	"messy-monster-ai-editor/asset_content"
-	"messy-monster-ai-editor/asset_organization"
-	"messy-monster-ai-editor/db"
+	"github.com/xxponline/messy-monster-ai-editor/asset_content"
+	"github.com/xxponline/messy-monster-ai-editor/asset_organization"
+	"github.com/xxponline/messy-monster-ai-editor/db"
 )
 
 func main() {
