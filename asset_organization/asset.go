@@ -1,10 +1,14 @@
 package asset_organization
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/xxponline/messy-monster-ai-editor/asset_content/content_modifier"
 	"github.com/xxponline/messy-monster-ai-editor/common"
 	"github.com/xxponline/messy-monster-ai-editor/db"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
 	"net/http"
 )
 
@@ -26,71 +30,120 @@ type ReadAssetReq struct {
 	AssetId string `json:"assetId" binding:"required"`
 }
 
+type RenameAssetReq struct {
+	AssetId string `json:"assetId" binding:"required"`
+	NewName string `json:"newName" binding:"required"`
+}
+
+type RemoveAssetReq struct {
+	AssetId string `json:"assetId" binding:"required"`
+}
+
 func CreateAssetAPI(context *gin.Context) {
 	var req CreateAssetReq
-	err := context.BindJSON(&req)
-	if err != nil {
-		context.JSON(http.StatusOK, gin.H{
-			"errCode":    common.RequestBindError,
-			"errMessage": err.Error(),
-		})
-		return
-	}
-
-	var errCode common.ErrorCode
-	var errMsg string
 	var initialContent string
 
-	//assetType Check
-	switch req.AssetType {
-	case "BehaviourTree":
-		errCode, errMsg, initialContent = content_modifier.BehaviourTreeCreateEmptyContent()
-		if errCode != common.Success {
+	{
+		//Basic Request Checking Pass
+		err := context.BindJSON(&req)
+		if err != nil {
 			context.JSON(http.StatusOK, gin.H{
-				"errCode":    errCode,
-				"errMessage": errMsg,
+				"errCode":    common.RequestBindError,
+				"errMessage": err.Error(),
 			})
 			return
 		}
-	case "BlackBoard":
-	default:
-		context.JSON(http.StatusOK, gin.H{
-			"errCode":    common.InvalidAssetType,
-			"errMessage": common.InvalidAssetType.GetMsgFormat(req.AssetType),
-		})
-		return
+
+		var errCode common.ErrorCode
+		var errMsg string
+
+		//assetType Check
+		switch req.AssetType {
+		case "BehaviourTree":
+			errCode, errMsg, initialContent = content_modifier.BehaviourTreeCreateEmptyContent()
+			if errCode != common.Success {
+				context.JSON(http.StatusOK, gin.H{
+					"errCode":    errCode,
+					"errMessage": errMsg,
+				})
+				return
+			}
+		case "BlackBoard":
+		default:
+			context.JSON(http.StatusOK, gin.H{
+				"errCode":    common.InvalidAssetType,
+				"errMessage": common.InvalidAssetType.GetMsgFormat(req.AssetType),
+			})
+			return
+		}
 	}
 
-	var assetItems []common.AssetSummaryInfoItem
-	var assetMgr db.IAssetManager
+	err := db.GormDatabase.Transaction(func(tx *gorm.DB) error {
+		var err error
 
-	errCode, errMsg, assetMgr = db.ServerDatabase.GetAssetManager(true)
-	if errCode != common.Success {
+		//Duplicated Asset Name Checking Pass
+		{
+			var count int64
+			db.GormDatabase.Model(&common.AssetDetailInfo{}).Where("assetSetId = ? AND assetName = ?", req.AssetSetId, req.AssetName).Count(&count)
+			if count > 0 {
+				context.JSON(http.StatusOK, gin.H{
+					"errCode":    common.DuplicatedAssetName,
+					"errMessage": common.DuplicatedAssetName.GetMsgFormat(req.AssetName),
+				})
+				return errors.New(common.DuplicatedAssetName.GetMsgFormat(req.AssetName))
+			}
+		}
+		//Creating Pass
+		newAssetId := uuid.New().String()
+		{
+			newAssetItem := common.AssetDetailInfo{
+				AssetId:      newAssetId,
+				AssetSetId:   req.AssetSetId,
+				AssetName:    req.AssetName,
+				AssetType:    req.AssetType,
+				AssetVersion: uuid.New().String(),
+				AssetContent: initialContent,
+			}
+
+			err = db.GormDatabase.Create(&newAssetItem).Error
+			if err != nil {
+				context.JSON(http.StatusOK, gin.H{
+					"errCode":    common.DataBaseError,
+					"errMessage": err.Error(),
+				})
+				return err
+			}
+		}
+		//Querying Pass
+		var assetItems []common.AssetSummaryInfoItem
+		{
+			err = db.GormDatabase.Find(&assetItems, "assetSetId = ?", req.AssetSetId).Error
+			if err != nil {
+				context.JSON(http.StatusOK, gin.H{
+					"errCode":    common.DataBaseError,
+					"errMessage": err.Error(),
+				})
+				return err
+			}
+		}
+
+		//All Done
 		context.JSON(http.StatusOK, gin.H{
-			"errCode":    errCode,
-			"errMessage": errMsg,
+			"errCode":           common.Success,
+			"errMessage":        "",
+			"assetSummaryInfos": assetItems,
+			"newAssetId":        newAssetId,
 		})
-		return
-	}
-	defer assetMgr.Release()
-
-	errCode, errMsg, createAssetId := assetMgr.CreateAsset(req.AssetSetId, req.AssetType, req.AssetName, initialContent)
-	if errCode != common.Success {
-		context.JSON(http.StatusOK, gin.H{
-			"errCode":    errCode,
-			"errMessage": errMsg,
-		})
-		return
-	}
-
-	errCode, errMsg, assetItems = assetMgr.ListAssets([]string{req.AssetSetId})
-
-	context.JSON(http.StatusOK, gin.H{
-		"errCode":           errCode,
-		"errMessage":        errMsg,
-		"assetSummaryInfos": assetItems,
-		"newAssetId":        createAssetId,
+		return nil
 	})
+
+	if err != nil {
+		zap.S().Error(err)
+	}
+}
+
+func RenameAssetAPI(ctx *gin.Context) {
+
 }
 
 func ListAssetsAPI(context *gin.Context) {
@@ -106,15 +159,18 @@ func ListAssetsAPI(context *gin.Context) {
 
 	var assetItems []common.AssetSummaryInfoItem
 
-	errCode, errMsg, assetMgr := db.ServerDatabase.GetAssetManager(false)
-	if errCode == common.Success {
-		defer assetMgr.Release()
-		errCode, errMsg, assetItems = assetMgr.ListAssets([]string{req.AssetSetId})
+	err = db.GormDatabase.Find(&assetItems, "assetSetId = ?", req.AssetSetId).Error
+	if err != nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.DataBaseError,
+			"errMessage": err.Error(),
+		})
+		return
 	}
 
 	context.JSON(http.StatusOK, gin.H{
-		"errCode":           errCode,
-		"errMessage":        errMsg,
+		"errCode":           common.Success,
+		"errMessage":        "",
 		"assetSummaryInfos": assetItems,
 	})
 }
@@ -132,15 +188,18 @@ func ListAssetsByMultipleAssetSetsAPI(context *gin.Context) {
 
 	var assetItems []common.AssetSummaryInfoItem
 
-	errCode, errMsg, assetMgr := db.ServerDatabase.GetAssetManager(false)
-	if errCode == common.Success {
-		defer assetMgr.Release()
-		errCode, errMsg, assetItems = assetMgr.ListAssets(req.AssetSetIds)
+	err = db.GormDatabase.Find(&assetItems, "assetSetId IN ?", req.AssetSetIds).Error
+	if err != nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.DataBaseError,
+			"errMessage": err.Error(),
+		})
+		return
 	}
 
 	context.JSON(http.StatusOK, gin.H{
-		"errCode":           errCode,
-		"errMessage":        errMsg,
+		"errCode":           common.Success,
+		"errMessage":        "",
 		"assetSummaryInfos": assetItems,
 	})
 }
@@ -156,17 +215,19 @@ func ReadAssetAPI(context *gin.Context) {
 		return
 	}
 
-	var assetDetail *common.AssetDetailInfo
-
-	errCode, errMsg, assetDoc := db.ServerDatabase.GetAssetDocument(req.AssetId, false)
-	if errCode == common.Success {
-		defer assetDoc.Release()
-		errCode, errMsg, assetDetail = assetDoc.ReadAsset()
+	var assetDetail common.AssetDetailInfo
+	err = db.GormDatabase.First(&assetDetail, "id = ?", req.AssetId).Error
+	if err != nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.DataBaseError,
+			"errMessage": err.Error(),
+		})
+		return
 	}
 
 	context.JSON(http.StatusOK, gin.H{
-		"errCode":       errCode,
-		"errMessage":    errMsg,
+		"errCode":       common.Success,
+		"errMessage":    "",
 		"assetDocument": assetDetail,
 	})
 }

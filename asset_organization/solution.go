@@ -2,10 +2,14 @@ package asset_organization
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/xxponline/messy-monster-ai-editor/common"
 	"github.com/xxponline/messy-monster-ai-editor/db"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
 	"net/http"
 )
 
@@ -29,17 +33,26 @@ func ListSolutionsAPI(context *gin.Context) {
 	var errMsg string
 	var solutionInfos []common.SolutionSummaryInfoItem
 
-	errCode, errMsg, solutionMgr := db.ServerDatabase.GetSolutionManager(false)
-	if errCode == common.Success {
-		defer solutionMgr.Release()
-		errCode, errMsg, solutionInfos = solutionMgr.ListSolutions()
+	err := db.GormDatabase.Find(&solutionInfos).Error
+	if err == nil {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    errCode,
+			"errMessage": errMsg,
+			"solutions":  solutionInfos,
+		})
+	} else {
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":    common.DataBaseError,
+			"errMessage": err.Error(),
+		})
 	}
 
-	context.JSON(http.StatusOK, gin.H{
-		"errCode":    errCode,
-		"errMessage": errMsg,
-		"solutions":  solutionInfos,
-	})
+	//errCode, errMsg, solutionMgr := db.ServerDatabase.GetSolutionManager(false)
+	//if errCode == common.Success {
+	//	defer solutionMgr.Release()
+	//	errCode, errMsg, solutionInfos = solutionMgr.ListSolutions()
+	//}
+
 }
 
 func CreateSolutionAPI(context *gin.Context) {
@@ -54,38 +67,69 @@ func CreateSolutionAPI(context *gin.Context) {
 		return
 	}
 
-	//res
-	var errCode common.ErrorCode
-	var errMsg string
-	var solutionInfos []common.SolutionSummaryInfoItem
+	err = db.GormDatabase.Transaction(func(tx *gorm.DB) error {
+		var err error
+		// Duplicated Name Checking Pass
+		{
+			var count int64
+			tx.Model(&common.SolutionSummaryInfoItem{}).Where("solutionName = ?", req.SolutionName).Count(&count)
+			if count > 0 {
+				errInfo := common.DuplicatedSolutionName.GetMsgFormat(req.SolutionName)
+				context.JSON(http.StatusOK, gin.H{
+					"errCode":    common.DuplicatedSolutionName,
+					"errMessage": errInfo,
+				})
+				return errors.New(errInfo)
+			}
+		}
 
-	errCode, errMsg, solutionMgr := db.ServerDatabase.GetSolutionManager(true)
-	if errCode != common.Success {
-		context.JSON(http.StatusOK, gin.H{
-			"errCode":    errCode,
-			"errMessage": errMsg,
-			"solutions":  solutionInfos,
-		})
-		return
-	}
-	defer solutionMgr.Release()
-	errCode, errMsg, newSolutionId := solutionMgr.CreateNewSolution(req.SolutionName)
-	if errCode != common.Success {
-		context.JSON(http.StatusOK, gin.H{
-			"errCode":    errCode,
-			"errMessage": errMsg,
-			"solutions":  solutionInfos,
-		})
-		return
-	}
-	errCode, errMsg, solutionInfos = solutionMgr.ListSolutions()
+		//Create New Solution Pass
+		newSolutionId := uuid.New().String()
+		{
+			newSolutionItem := common.SolutionDetailInfo{
+				SolutionId:      newSolutionId,
+				SolutionName:    req.SolutionName,
+				SolutionVersion: uuid.New().String(),
+				SolutionMeta:    json.RawMessage("{}"),
+			}
 
-	context.JSON(http.StatusOK, gin.H{
-		"errCode":       errCode,
-		"errMessage":    errMsg,
-		"solutions":     solutionInfos,
-		"newSolutionId": newSolutionId,
+			err = tx.Create(&newSolutionItem).Error
+			if err != nil {
+				context.JSON(http.StatusOK, gin.H{
+					"errCode":    common.DataBaseError,
+					"errMessage": err.Error(),
+				})
+				return err
+			}
+		}
+
+		//Query And Response Pass
+		var solutionInfos []common.SolutionSummaryInfoItem
+		{
+			err := tx.Find(&solutionInfos).Error
+			if err != nil {
+				context.JSON(http.StatusOK, gin.H{
+					"errCode":    common.DataBaseError,
+					"errMessage": err.Error(),
+				})
+				return err
+			}
+		}
+
+		//All Pass Ok
+		context.JSON(http.StatusOK, gin.H{
+			"errCode":       common.Success,
+			"errMessage":    "",
+			"solutions":     solutionInfos,
+			"newSolutionId": newSolutionId,
+		})
+
+		return nil
 	})
+
+	if err != nil {
+		zap.S().Error(err)
+	}
 }
 
 func SubmitSolutionMetaAPI(context *gin.Context) {
@@ -99,32 +143,60 @@ func SubmitSolutionMetaAPI(context *gin.Context) {
 		return
 	}
 
-	errCode, errMsg, solutionDetailInfo := doSubmitSolutionMeta(req)
+	err = db.GormDatabase.Transaction(func(tx *gorm.DB) error {
+		var err error
+		// Query exist solution item pass
+		var existSolutionItem common.SolutionDetailInfo
+		{
+			err = tx.Find(&existSolutionItem, "id = ?", req.SolutionId).Error
+			if err != nil {
+				context.JSON(http.StatusOK, gin.H{
+					"errCode":    common.InvalidSolution,
+					"errMessage": err.Error(),
+				})
+				return err
+			}
+		}
 
-	context.JSON(http.StatusOK, gin.H{
-		"errCode":        errCode,
-		"errMessage":     errMsg,
-		"solutionDetail": solutionDetailInfo,
+		//Version checking pass
+		{
+			if existSolutionItem.SolutionVersion != req.CurrentVersion {
+				err = errors.New(common.InvalidSolutionVersion.GetMsgFormat(existSolutionItem.SolutionVersion, req.CurrentVersion))
+				context.JSON(http.StatusOK, gin.H{
+					"errCode":    common.InvalidSolutionVersion,
+					"errMessage": err.Error(),
+				})
+				return err
+			}
+		}
+
+		//Update pass
+		{
+			existSolutionItem.SolutionMeta = req.SolutionMeta
+			err = db.GormDatabase.Save(&existSolutionItem).Error
+			if err != nil {
+				context.JSON(http.StatusOK, gin.H{
+					"errCode":    common.DataBaseError,
+					"errMessage": err.Error(),
+				})
+				return err
+			}
+		}
+
+		// All Done
+		{
+			context.JSON(http.StatusOK, gin.H{
+				"errCode":        common.Success,
+				"errMessage":     "",
+				"solutionDetail": existSolutionItem,
+			})
+		}
+		return nil
 	})
-}
 
-func doSubmitSolutionMeta(req SubmitSolutionMetaReq) (errCode common.ErrorCode, errMsg string, solutionInfo *common.SolutionDetailInfo) {
-	errCode, errMsg, solutionMgr := db.ServerDatabase.GetSolutionManager(true)
-	if errCode != common.Success {
-		return errCode, errMsg, nil
+	if err != nil {
+		zap.S().Error(err)
 	}
-	defer solutionMgr.Release()
-
-	errCode, errMsg, existDetailInfo := solutionMgr.ReadSolutionDetail(req.SolutionId)
-	if errCode != common.Success {
-		return errCode, errMsg, nil
-	}
-	if existDetailInfo.SolutionVersion != req.CurrentVersion {
-		return common.InvalidSolutionVersion, common.InvalidSolutionVersion.GetMsgFormat(existDetailInfo.SolutionVersion, req.CurrentVersion), nil
-	}
-
-	errCode, errMsg, updatedDetailInfo := solutionMgr.SubmitSolutionMeta(req.SolutionId, req.SolutionMeta)
-	return errCode, errMsg, updatedDetailInfo
 }
 
 func GetSolutionDetailAPI(context *gin.Context) {
@@ -138,19 +210,33 @@ func GetSolutionDetailAPI(context *gin.Context) {
 		return
 	}
 
-	var errCode common.ErrorCode
-	var errMsg string
-	var solutionInfo *common.SolutionDetailInfo
+	err = db.GormDatabase.Transaction(func(tx *gorm.DB) error {
+		var err error
+		// Query exist solution item pass
+		var existSolutionItem common.SolutionDetailInfo
+		{
+			err = tx.Find(&existSolutionItem, "id = ?", req.SolutionId).Error
+			if err != nil {
+				context.JSON(http.StatusOK, gin.H{
+					"errCode":    common.InvalidSolution,
+					"errMessage": err.Error(),
+				})
+				return err
+			}
+		}
 
-	errCode, errMsg, solutionMgr := db.ServerDatabase.GetSolutionManager(false)
-	if errCode == common.Success {
-		defer solutionMgr.Release()
-		errCode, errMsg, solutionInfo = solutionMgr.ReadSolutionDetail(req.SolutionId)
-	}
-
-	context.JSON(http.StatusOK, gin.H{
-		"errCode":        errCode,
-		"errMessage":     errMsg,
-		"solutionDetail": solutionInfo,
+		//All Done
+		{
+			context.JSON(http.StatusOK, gin.H{
+				"errCode":        common.Success,
+				"errMessage":     "",
+				"solutionDetail": existSolutionItem,
+			})
+		}
+		return nil
 	})
+
+	if err != nil {
+		zap.S().Error(err)
+	}
 }

@@ -4,15 +4,23 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/xxponline/messy-monster-ai-editor/asset_content"
 	"github.com/xxponline/messy-monster-ai-editor/asset_organization"
-	"github.com/xxponline/messy-monster-ai-editor/db"
+	"go.uber.org/zap"
 )
 
 func main() {
-	db.ServerDatabase = &db.SqliteDataBase{}
+	//Initialize Zap Log System
+	developmentLogger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err.Error())
+		return
+	}
+	zap.ReplaceGlobals(developmentLogger)
+
+	/*db.ServerDatabase = &db.SqliteDataBase{}
 	errCode, errMsg := db.ServerDatabase.Initialize("./db/db.sqlite")
 	if errCode != 0 {
 		panic(errMsg)
-	}
+	}*/
 
 	//var items []common.SolutionInfoItem
 	//errCode, errMsg, items = solutionMgr.ListSolutions()

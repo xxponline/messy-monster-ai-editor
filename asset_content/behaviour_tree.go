@@ -2,11 +2,15 @@ package asset_content
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/xxponline/messy-monster-ai-editor/asset_content/content_modifier"
 	"github.com/xxponline/messy-monster-ai-editor/common"
 	"github.com/xxponline/messy-monster-ai-editor/db"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
 	"net/http"
 )
 
@@ -183,7 +187,7 @@ func GetDetailInfoAboutBehaviourTreeNodeAPI(context *gin.Context) {
 		return
 	}
 
-	errCode, errMsg, logicNode := DoGetBehaviourTreeNode(req.AssetId, req.NodeId)
+	errCode, errMsg, logicNode := doGetBehaviourTreeNode(req.AssetId, req.NodeId)
 	context.JSON(http.StatusOK, gin.H{
 		"errCode":    errCode,
 		"errMessage": errMsg,
@@ -191,23 +195,17 @@ func GetDetailInfoAboutBehaviourTreeNodeAPI(context *gin.Context) {
 	})
 }
 
-func DoGetBehaviourTreeNode(assetId string, nodeId string) (common.ErrorCode, string, *content_modifier.LogicBtNode) {
-	//Db btDoc
-	errCode, errMsg, assetDoc := db.ServerDatabase.GetAssetDocument(assetId, false)
-	if errCode != common.Success {
-		return errCode, errMsg, nil
-	}
-	defer assetDoc.Release()
+func doGetBehaviourTreeNode(assetId string, nodeId string) (common.ErrorCode, string, *content_modifier.LogicBtNode) {
 
-	//detail
-	errCode, errMsg, assetDetail := assetDoc.ReadAsset()
-	if errCode != common.Success {
-		return errCode, errMsg, nil
+	var assetDetail common.AssetDetailInfo
+	err := db.GormDatabase.First(&assetDetail, "id = ?", assetId).Error
+	if err != nil {
+		return common.DataBaseError, err.Error(), nil
 	}
 
 	//Deserialization
 	var btDoc content_modifier.BehaviourTreeDocumentation
-	err := json.Unmarshal([]byte(assetDetail.AssetContent), &btDoc)
+	err = json.Unmarshal([]byte(assetDetail.AssetContent), &btDoc)
 	if err != nil {
 		return common.DeserializationError, common.DeserializationError.GetMsg(), nil
 	}
@@ -267,69 +265,95 @@ func RemoveBehaviourTreeNodeAPI(context *gin.Context) {
 }
 
 func passBehaviourTreeDocumentModification[T AssetModifier](req T, behaviourTreeModify func(req T, btDoc *content_modifier.BehaviourTreeDocumentation) (common.ErrorCode, string, []content_modifier.BehaviourTreeNodeDiffInfo)) (common.ErrorCode, string, *BehaviourTreeNodeModification) {
-	//Db btDoc
-	errCode, errMsg, assetDoc := db.ServerDatabase.GetAssetDocument(req.GetAssetID(), true)
-	if errCode != common.Success {
-		return errCode, errMsg, nil
-	}
-	defer assetDoc.Release()
+	var errCode = common.Success
+	var errMsg = ""
+	var modificationInfo *BehaviourTreeNodeModification = nil
 
-	//detail
-	errCode, errMsg, assetDetail := assetDoc.ReadAsset()
-	if errCode != common.Success {
-		return errCode, errMsg, nil
-	}
+	err := db.GormDatabase.Transaction(func(tx *gorm.DB) error {
+		var assetDetail common.AssetDetailInfo
+		//Querying Pass
+		{
+			err := db.GormDatabase.First(&assetDetail, "id = ?", req.GetAssetID()).Error
+			if err != nil {
+				errCode = common.DataBaseError
+				errMsg = err.Error()
+				return err
+			}
+		}
 
-	//Version Check
-	if assetDetail.AssetVersion != req.GetCurrentVersion() {
-		return common.InvalidAssetVersion, common.InvalidAssetVersion.GetMsgFormat(assetDetail.AssetVersion, req.GetCurrentVersion()), nil
-	}
+		//Version Checking Pass
+		{
+			if assetDetail.AssetVersion != req.GetCurrentVersion() {
+				eMsg := common.InvalidAssetVersion.GetMsgFormat(assetDetail.AssetVersion, req.GetCurrentVersion())
+				errCode, errMsg = common.InvalidAssetVersion, eMsg
+				return errors.New(eMsg)
+			}
+		}
 
-	//Deserialization
-	var btDoc content_modifier.BehaviourTreeDocumentation
-	err := json.Unmarshal([]byte(assetDetail.AssetContent), &btDoc)
+		//Deserialization Pass
+		var btDoc content_modifier.BehaviourTreeDocumentation
+		{
+			err := json.Unmarshal([]byte(assetDetail.AssetContent), &btDoc)
+			if err != nil {
+				eMsg := common.DeserializationError.GetMsg()
+				errCode, errMsg = common.DeserializationError, eMsg
+				return errors.New(eMsg)
+			}
+		}
+
+		//Real Modified Logic Pass
+		var diffInfos []content_modifier.BehaviourTreeNodeDiffInfo
+		{
+			errCode, errMsg, diffInfos = behaviourTreeModify(req, &btDoc)
+			if errCode != common.Success {
+				return errors.New(errMsg)
+			}
+		}
+
+		//Write Modification
+		newVersion := req.GetCurrentVersion()
+		if len(diffInfos) > 0 { // just need real write data when there are some diffInfos
+			//Serialization
+			modifiedContent, err := json.Marshal(btDoc)
+			if err != nil {
+				errCode = common.SerializationError
+				eMsg := errCode.GetMsg()
+				errMsg = eMsg
+				return errors.New(eMsg)
+			}
+
+			//DB Update
+			newVersion = uuid.New().String()
+			assetDetail.AssetVersion = newVersion
+			assetDetail.AssetContent = string(modifiedContent)
+
+			err = tx.Save(assetDetail).Error
+			if err != nil {
+				errCode = common.DataBaseError
+				eMsg := errCode.GetMsg()
+				errMsg = eMsg
+				return errors.New(eMsg)
+			}
+		}
+
+		//All Pass
+		//Calculate Modification Info
+		modificationInfo = &BehaviourTreeNodeModification{
+			diffInfos,
+			req.GetCurrentVersion(),
+			newVersion}
+
+		return nil
+	})
+
 	if err != nil {
-		return common.DeserializationError, common.DeserializationError.GetMsg(), nil
-	}
-
-	// Real Modified Logic Pass
-	errCode, errMsg, diffInfos := behaviourTreeModify(req, &btDoc)
-	if errCode != common.Success {
+		zap.S().Error(err)
 		return errCode, errMsg, nil
 	}
-
-	newVersion := req.GetCurrentVersion()
-	if len(diffInfos) > 0 { // just need real write data when there are some diffInfos
-		//Serialization
-		modifiedContent, err := json.Marshal(btDoc)
-		if err != nil {
-			return common.SerializationError, common.SerializationError.GetMsg(), nil
-		}
-
-		//DB Update
-		errCode, errMsg, newVersion = assetDoc.UpdateContent(string(modifiedContent))
-		if errCode != common.Success {
-			return errCode, errMsg, nil
-		}
-	}
-
-	//Calculate Modification Info
-	modificationInfo := BehaviourTreeNodeModification{
-		diffInfos,
-		req.GetCurrentVersion(),
-		newVersion}
-
-	return common.Success, "", &modificationInfo
+	return common.Success, "", modificationInfo
 }
 
-func GetArchivedBehaviourTreeAsset(assetId string) (common.ErrorCode, string, *ArchivedBehaviourTree) {
-	errCode, errMsg, doc := db.ServerDatabase.GetAssetDocument(assetId, false)
-	if errCode != common.Success {
-		return errCode, errMsg, nil
-	}
-	defer doc.Release()
-
-	errCode, errMsg, assetDetail := doc.ReadAsset()
+func GetArchivedBehaviourTreeAsset(assetDetail *common.AssetDetailInfo) (common.ErrorCode, string, *ArchivedBehaviourTree) {
 
 	if assetDetail.AssetType != "BehaviourTree" {
 		return common.ArchiveAssetsUnexpectAssetType, common.ArchiveAssetsUnexpectAssetType.GetMsgFormat(assetDetail.AssetType, "BehaviourTree"), nil
